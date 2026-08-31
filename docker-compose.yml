@@ -20,3 +20,25 @@ services:
       - "5173:5173"
     depends_on:
       - backend
+
+  document-engine:
+    build:
+      context: ./document-engine
+      dockerfile: Dockerfile
+    container_name: sih26100-document-engine
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - APP_ENV=production
+      - LOG_LEVEL=INFO
+      - TEMP_DIR=/app/temp
+      - MAX_UPLOAD_SIZE_MB=25
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+

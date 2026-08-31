@@ -85,3 +85,10 @@ Thumbs.db
 # Storage / User Data (preserve placeholder)
 storage/*
 !storage/.gitkeep
+
+# Document Engine temp & model caches
+document-engine/temp/*
+!document-engine/temp/.gitkeep
+document-engine/tessdata/*
+!document-engine/tessdata/.gitkeep
+

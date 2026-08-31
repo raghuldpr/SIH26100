@@ -1,0 +1,209 @@
+[
+  {
+    "filename": "SYNTHETIC_PAN_CARD.pdf",
+    "expected_type": "PAN",
+    "detected_type": "PAN",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "pan",
+      "name"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_GST_REGISTRATION.pdf",
+    "expected_type": "GST",
+    "detected_type": "GST",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 1,
+    "tables_detected": 1,
+    "fields_extracted": [
+      "gstin",
+      "company_name",
+      "legal_name",
+      "status"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_UDYAM_CERTIFICATE.pdf",
+    "expected_type": "UDYAM",
+    "detected_type": "UDYAM",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "udyam_number",
+      "enterprise_name",
+      "enterprise_type"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_FINANCIAL_STATEMENT.pdf",
+    "expected_type": "FINANCIAL_STATEMENT",
+    "detected_type": "FINANCIAL_STATEMENT",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 2,
+    "tables_detected": 1,
+    "fields_extracted": [
+      "company_name",
+      "financial_year",
+      "revenue",
+      "profit",
+      "statement_type"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_EXPERIENCE_CERTIFICATE.pdf",
+    "expected_type": "EXPERIENCE_CERTIFICATE",
+    "detected_type": "EXPERIENCE_CERTIFICATE",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "company_name",
+      "client_name",
+      "project_name",
+      "project_value",
+      "completion_date"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_OEM_AUTHORIZATION.pdf",
+    "expected_type": "OEM_AUTHORIZATION",
+    "detected_type": "OEM_AUTHORIZATION",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "oem_name",
+      "authorized_bidder",
+      "authorization_date",
+      "product"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_MII_DECLARATION.pdf",
+    "expected_type": "MII_DECLARATION",
+    "detected_type": "MII_DECLARATION",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "bidder_name",
+      "local_content_percentage",
+      "country_of_origin",
+      "declaration_date"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_GEM_TENDER.pdf",
+    "expected_type": "TENDER",
+    "detected_type": "TENDER",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 2,
+    "tables_detected": 1,
+    "fields_extracted": [
+      "tender_reference",
+      "issuing_organization",
+      "title",
+      "bid_deadline",
+      "estimated_value"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_SCANNED_DOC.pdf",
+    "expected_type": "GST",
+    "detected_type": "GST",
+    "classification_confidence": 0.98,
+    "ocr_used": true,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "gstin",
+      "company_name",
+      "legal_name",
+      "status"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_POOR_QUALITY_SCAN.pdf",
+    "expected_type": "PAN",
+    "detected_type": "PAN",
+    "classification_confidence": 0.91,
+    "ocr_used": true,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "pan",
+      "name"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_ROTATED_SCAN.pdf",
+    "expected_type": "UDYAM",
+    "detected_type": "UDYAM",
+    "classification_confidence": 0.98,
+    "ocr_used": true,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "udyam_number"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_HYBRID_DOC.pdf",
+    "expected_type": "MII_DECLARATION",
+    "detected_type": "MII_DECLARATION",
+    "classification_confidence": 0.98,
+    "ocr_used": false,
+    "pages": 1,
+    "tables_detected": 0,
+    "fields_extracted": [
+      "local_content_percentage",
+      "country_of_origin"
+    ],
+    "processing_status": "completed"
+  },
+  {
+    "filename": "SYNTHETIC_INVALID_FILE.exe",
+    "expected_type": "UNKNOWN",
+    "detected_type": "UNKNOWN",
+    "classification_confidence": 0.0,
+    "ocr_used": false,
+    "pages": 0,
+    "tables_detected": 0,
+    "fields_extracted": [],
+    "processing_status": "failed"
+  },
+  {
+    "filename": "SYNTHETIC_EMPTY_DOC.pdf",
+    "expected_type": "UNKNOWN",
+    "detected_type": "UNKNOWN",
+    "classification_confidence": 0.0,
+    "ocr_used": false,
+    "pages": 0,
+    "tables_detected": 0,
+    "fields_extracted": [],
+    "processing_status": "failed"
+  }
+]
