@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import AppException, BadRequestException, NotFoundException
 from app.crud.crud_bidder import crud_bidder
 from app.crud.crud_tender import crud_tender
+from app.crud.crud_tender_requirement import crud_tender_requirement
 from app.dependencies.auth import get_current_user, require_role
 from app.dependencies.database import get_db
 from app.models.enums import DocumentType, TenderStatus, UserRole
@@ -14,11 +15,17 @@ from app.schemas.bidder import TenderBidderResponse
 from app.schemas.common import PaginatedResponse, PaginationMeta, StandardResponse
 from app.schemas.document import DocumentResponse
 from app.schemas.tender import TenderCreate, TenderResponse, TenderUpdate
+from app.schemas.tender_intelligence import (
+    TenderAnalysisRequest,
+    TenderComplianceProfileResponse,
+)
+from app.schemas.tender_requirement import TenderRequirementResponse
 from app.services.document_service import (
     list_tender_documents,
     upload_multiple_tender_documents,
     upload_tender_document,
 )
+from app.services.tender_intelligence_service import tender_intelligence_service
 
 
 tenders_router = APIRouter(
@@ -399,3 +406,77 @@ def list_tender_documents_endpoint(
             total_pages=total_pages,
         ),
     )
+
+
+# -----------------------------------------------------------------------------
+# PHASE 08: TENDER INTELLIGENCE & COMPLIANCE PROFILE ENDPOINTS
+# -----------------------------------------------------------------------------
+@tenders_router.post(
+    "/{tender_id}/intelligence/analyze",
+    response_model=TenderComplianceProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Analyze Tender Requirements and Generate Compliance Profile",
+    description="Executes the hybrid deterministic + controlled AI Gateway pipeline to produce a Tender Compliance Profile.",
+)
+def analyze_tender_endpoint(
+    tender_id: UUID,
+    request: Optional[TenderAnalysisRequest] = None,
+    current_user: User = Depends(
+        require_role(UserRole.PROCUREMENT_OFFICER, UserRole.ADMIN, UserRole.BUYER)
+    ),
+    db: Session = Depends(get_db),
+) -> TenderComplianceProfileResponse:
+    """Trigger Tender Intelligence analysis for a tender."""
+    return tender_intelligence_service.analyze_tender(
+        db=db,
+        tender_id=tender_id,
+        request=request,
+    )
+
+
+@tenders_router.get(
+    "/{tender_id}/intelligence",
+    response_model=TenderComplianceProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Tender Compliance Profile",
+    description="Retrieves the structured Tender Compliance Profile distinguishing deterministic, AI-assisted, and unresolved criteria.",
+)
+def get_tender_intelligence_profile_endpoint(
+    tender_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TenderComplianceProfileResponse:
+    """Fetch existing Tender Compliance Profile."""
+    return tender_intelligence_service.get_compliance_profile(
+        db=db,
+        tender_id=tender_id,
+    )
+
+
+@tenders_router.get(
+    "/{tender_id}/requirements",
+    response_model=List[TenderRequirementResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get Tender Requirements",
+    description="Retrieves persisted eligibility and compliance requirements for a tender with optional filters.",
+)
+def get_tender_requirements_endpoint(
+    tender_id: UUID,
+    requirement_type: Optional[str] = Query(None, description="Optional requirement type filter (e.g. FINANCIAL, OEM)"),
+    mandatory_only: bool = Query(False, description="Filter for mandatory requirements only"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> List[TenderRequirementResponse]:
+    """Lists persisted requirements for a tender."""
+    tender = crud_tender.get_by_id(db, tender_id)
+    if not tender:
+        raise NotFoundException(f"Tender {tender_id} not found")
+
+    items = crud_tender_requirement.get_by_tender(
+        db=db,
+        tender_id=tender_id,
+        requirement_type=requirement_type,
+        mandatory_only=mandatory_only,
+    )
+    return [TenderRequirementResponse.model_validate(r) for r in items]
+

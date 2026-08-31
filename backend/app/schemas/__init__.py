@@ -44,11 +44,35 @@ from app.schemas.processing import (
 )
 
 from app.schemas.tender import (
-
     TenderBase,
     TenderCreate,
     TenderResponse,
     TenderUpdate,
+)
+from app.schemas.ai_gateway import (
+    AIGatewayResponse,
+    AIGatewayUsageMetadata,
+    AmbiguousClauseRequest,
+    LLMClauseInterpretation,
+)
+from app.schemas.tender_clause import (
+    ClauseCandidate,
+    ClauseExtractionResult,
+)
+from app.schemas.tender_intelligence import (
+    TenderAnalysisRequest,
+    TenderComplianceProfileResponse,
+)
+from app.schemas.tender_requirement_normalizer import (
+    NormalizationResult,
+    NormalizationStatus,
+    NormalizedRequirement,
+)
+from app.schemas.tender_requirement import (
+    TenderRequirementBase,
+    TenderRequirementCreate,
+    TenderRequirementResponse,
+    TenderRequirementUpdate,
 )
 from app.schemas.user import (
     UserBase,
@@ -56,6 +80,16 @@ from app.schemas.user import (
     UserLogin,
     UserResponse,
     UserUpdate,
+)
+
+from app.schemas.compliance import (
+    BidderEvidenceCreate,
+    BidderEvidenceResponse,
+    ComplianceResultResponse,
+    EvaluationRequest,
+    RequirementCreate,
+    RequirementResponse,
+    TenderBidderEvaluationRequest,
 )
 
 __all__ = [
@@ -83,9 +117,32 @@ __all__ = [
     "TenderCreate",
     "TenderResponse",
     "TenderUpdate",
+    "TenderRequirementBase",
+    "TenderRequirementCreate",
+    "TenderRequirementUpdate",
+    "TenderRequirementResponse",
+    "ClauseCandidate",
+    "ClauseExtractionResult",
+    "TenderAnalysisRequest",
+    "TenderComplianceProfileResponse",
+    "NormalizationStatus",
+    "NormalizedRequirement",
+    "NormalizationResult",
+    "AmbiguousClauseRequest",
+    "LLMClauseInterpretation",
+    "AIGatewayUsageMetadata",
+    "AIGatewayResponse",
     "UserBase",
     "UserCreate",
     "UserLogin",
     "UserResponse",
     "UserUpdate",
+    "RequirementCreate",
+    "RequirementResponse",
+    "BidderEvidenceCreate",
+    "BidderEvidenceResponse",
+    "ComplianceResultResponse",
+    "EvaluationRequest",
+    "TenderBidderEvaluationRequest",
 ]
+

@@ -8,6 +8,17 @@ from app.crud.crud_tender import (
     list_tenders,
     update_tender,
 )
+from app.crud.crud_tender_requirement import (
+    CRUDTenderRequirement,
+    bulk_create_requirements,
+    create_requirement,
+    crud_tender_requirement,
+    delete_requirement,
+    delete_requirements_by_tender,
+    get_requirement_by_id,
+    get_requirements_by_tender,
+    update_requirement,
+)
 from app.crud.crud_user import CRUDUser, crud_user
 
 __all__ = [
@@ -21,4 +32,13 @@ __all__ = [
     "list_tenders",
     "update_tender",
     "archive_tender",
+    "CRUDTenderRequirement",
+    "crud_tender_requirement",
+    "create_requirement",
+    "bulk_create_requirements",
+    "get_requirement_by_id",
+    "get_requirements_by_tender",
+    "update_requirement",
+    "delete_requirement",
+    "delete_requirements_by_tender",
 ]

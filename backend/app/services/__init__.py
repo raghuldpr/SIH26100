@@ -38,6 +38,37 @@ from app.services.tender_service import (
     update_tender,
 )
 
+from app.services.ai_gateway import (
+    AIGateway,
+    ai_gateway,
+    analyze_ambiguous_clause,
+)
+from app.services.tender_clause_extractor import (
+    TenderClauseExtractor,
+    extract_clauses,
+    extract_clauses_from_text,
+    tender_clause_extractor,
+)
+from app.services.tender_intelligence_service import (
+    TenderIntelligenceService,
+    process_tender_pages,
+    resolve_clause,
+    tender_intelligence_service,
+)
+from app.services.tender_requirement_normalizer import (
+    TenderRequirementNormalizer,
+    normalize_candidates,
+    normalize_clause,
+    normalize_indian_currency,
+    normalize_time_expression,
+    tender_requirement_normalizer,
+)
+
+from app.services.compliance_service import (
+    ComplianceService,
+    compliance_service,
+)
+
 __all__ = [
     "create_tender",
     "get_tender_by_id",
@@ -71,7 +102,27 @@ __all__ = [
     "processing_pipeline",
     "DocumentProcessingService",
     "document_processing_service",
+    "TenderClauseExtractor",
+    "tender_clause_extractor",
+    "extract_clauses",
+    "extract_clauses_from_text",
+    "TenderRequirementNormalizer",
+    "tender_requirement_normalizer",
+    "normalize_clause",
+    "normalize_candidates",
+    "normalize_indian_currency",
+    "normalize_time_expression",
+    "AIGateway",
+    "ai_gateway",
+    "analyze_ambiguous_clause",
+    "TenderIntelligenceService",
+    "tender_intelligence_service",
+    "resolve_clause",
+    "process_tender_pages",
+    "ComplianceService",
+    "compliance_service",
 ]
+
 
 
 

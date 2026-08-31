@@ -1,23 +1,39 @@
 # SIH26100
 
-> **AI-powered Bid Compliance Verification Platform for GeM procurement**
+> **AI-powered Bid Compliance Verification Platform for GeM Procurement**
 
 ---
 
-## 📌 Phase Overview
-**Phase**: `Phase 01 — Project Foundation`
+## 📌 Project Overview
+**Current Milestone**: `Phase 09 — Compliance Rule Engine`
 
-This phase sets up the core architecture, tooling, containerization, and foundational code for the SIH26100 monorepo. It establishes a minimal, clean, and extensible foundation without implementing business logic, authentication, databases, or AI engines prematurely.
+SIH26100 is an enterprise-grade, deterministic bid compliance and automated procurement verification platform designed for GeM (Government e-Marketplace) tenders. It combines upstream AI-powered intelligence for document interpretation with a strictly deterministic, auditable, and rule-based compliance engine.
+
+### Core Architectural Principle
+> **"AI interprets requirements upstream. Deterministic Python rules evaluate them downstream."**
+>
+> The compliance rule engine operates independently of LLMs (no external AI calls during evaluation). Every evaluation decision produces an explicit, human-readable reason suitable for legal and administrative procurement audit trails.
 
 ---
 
-## 🚀 Current Capabilities
-- **FastAPI Backend**: Modular Python 3.12 backend service with CORS, configuration management, and health check endpoints.
-- **React + TypeScript Frontend**: Lightweight, responsive Vite-powered frontend interface.
-- **Docker Compose**: Containerized multi-service setup for backend and frontend.
-- **Environment Configuration**: Robust environment variable handling via `pydantic-settings` and `.env`.
-- **Automated Backend Testing**: Unit and endpoint tests using `pytest` and `TestClient`.
-- **Modular Monorepo Structure**: Clean architecture preparing for future document extraction, AI agents, and workflow integrations.
+## 🚀 Capabilities
+
+- **Phase 01 — Foundation**: FastAPI modular backend, React + TypeScript + Vite frontend, Docker Compose orchestration.
+- **Phase 02 & 03 — Identity & Access**: JWT authentication, RBAC (Bidder, Evaluator, Admin), secure password hashing.
+- **Phase 04 & 05 — Tenders & Bidder Management**: Tender RFP lifecycle, GeM bid management, multi-bidder registration.
+- **Phase 06 & 07 — Document Engine & Processing**: OCR pipeline (PaddleOCR), PDF extraction, document classification, entity extraction, Supabase storage.
+- **Phase 08 — Tender Intelligence & Requirement Normalization**: Clause extraction, currency & time normalization, structured requirement definitions.
+- **Phase 09 — Deterministic Compliance Rule Engine**:
+  - **Numeric Evaluator**: Exact, inequality, and interval comparisons (`EQUAL`, `NOT_EQUAL`, `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN`, `LESS_THAN_OR_EQUAL`, `MINIMUM`, `MAXIMUM`, `BETWEEN`) with high-precision `Decimal` financial coercion.
+  - **Boolean Evaluator**: Strict boolean evaluation with affirmative/negative token normalization.
+  - **Date Range Evaluator**: Chronological order, tender deadline validity, and Financial Year intervals (`DATE_EQUAL`, `DATE_BEFORE`, `DATE_AFTER`, `DATE_BETWEEN`, etc.).
+  - **Three-Valued Logical Evaluator**: Full Kleene logic for `AND` / `OR` combinations, short-circuiting, and arbitrary nested rule trees (e.g., `A AND (B OR C)`).
+  - **Conditional Evaluator**: Deterministic procedural dependencies (`IF <condition> THEN <consequence>`).
+  - **Mandatory Document Evaluator**: Presence, candidate matching, verified status confirmation, definitely absent failure, and statutory exemption waivers.
+  - **Experience Evaluator**: Cumulative experience years, contract count thresholds, category relevance verification, and completion status filters.
+  - **Generic Exemption Mechanism**: Declarative exemption rules (e.g., DPIIT Startup waiver, MSME turnover exemptions) applied without hardcoded tender logic.
+  - **Database Integration & Immutability**: PostgreSQL / SQLAlchemy models (`requirements`, `bidder_evidence`, `compliance_results`). Historical evaluations are **never overwritten** to maintain an unbroken audit trail.
+  - **Service Architecture**: `API (/api/v1/compliance) ↓ ComplianceService ↓ Rule Engine ↓ PostgreSQL`.
 
 ---
 
@@ -25,104 +41,56 @@ This phase sets up the core architecture, tooling, containerization, and foundat
 
 ```
 SIH26100/
-│
-├── backend/                  # FastAPI Python backend service
-│   ├── app/                  # Application code
-│   │   ├── __init__.py
-│   │   ├── main.py           # FastAPI entrypoint and routes
-│   │   ├── config.py         # Configuration using pydantic-settings
-│   │   └── api/              # API subpackages & routers (future expansion)
-│   │       └── __init__.py
-│   ├── tests/                # Backend pytest suite
-│   │   ├── __init__.py
-│   │   └── test_health.py    # Health & status endpoint tests
-│   ├── Dockerfile            # Python 3.12 slim container
-│   ├── requirements.txt      # Python dependencies
-│   └── .dockerignore
-│
-├── document_engine/          # Document processing & OCR module (Future Phases)
-│   └── .gitkeep
-│
-├── agents/                   # AI verification & analysis agents (Future Phases)
-│   └── .gitkeep
-│
-├── n8n/                      # n8n workflow integration & nodes (Future Phases)
-│   └── .gitkeep
-│
-├── frontend/                 # React + TypeScript + Vite frontend
-│   ├── src/
-│   │   ├── App.tsx           # Base application component
-│   │   ├── main.tsx          # React application root
-│   │   └── index.css         # Clean custom styling
-│   ├── public/
-│   │   └── .gitkeep
-│   ├── Dockerfile            # Node 20 Alpine container
-│   ├── .dockerignore
-│   ├── package.json          # Node dependencies and scripts
-│   ├── package-lock.json
-│   ├── tsconfig.json         # TypeScript configuration
-│   ├── tsconfig.app.json
-│   ├── tsconfig.node.json
-│   └── vite.config.ts        # Vite configuration
-│
-├── database/                 # Database migrations & schemas (Future Phases)
-│   └── .gitkeep
-│
-├── storage/                  # Persistent local document storage
-│   └── .gitkeep
-│
-├── tests/                    # End-to-end and integration tests (Future Phases)
-│   └── .gitkeep
-│
-├── docs/                     # Project documentation
-│   └── DEVELOPMENT.md        # Conventions, Git workflows, and coding standards
-│
-├── .env                      # Local environment configuration (git-ignored)
-├── .env.example              # Example environment template
-├── .gitignore                # Root git ignore rules
-├── docker-compose.yml        # Multi-container orchestration
-└── README.md                 # Project documentation
+├── backend/
+│   ├── alembic/                      # Database migrations
+│   │   └── versions/                 # Revision scripts (including Phase 08 & 09 migrations)
+│   ├── app/
+│   │   ├── api/v1/endpoints/         # REST API routers (compliance, tenders, bidders, etc.)
+│   │   ├── compliance/               # Deterministic Compliance Rule Engine
+│   │   │   ├── boolean.py            # Boolean evaluator
+│   │   │   ├── conditional.py        # IF/THEN evaluator
+│   │   │   ├── dates.py              # Date & timeline evaluator
+│   │   │   ├── documents.py          # Document presence & verification evaluator
+│   │   │   ├── engine.py             # Central ComplianceEngine coordinator
+│   │   │   ├── enums.py              # Statuses, operators, and rule types
+│   │   │   ├── exemptions.py         # Exemption mechanism
+│   │   │   ├── experience.py         # Track record & contract evaluator
+│   │   │   ├── logical.py            # Three-valued AND/OR evaluator
+│   │   │   ├── models.py             # Pydantic domain models
+│   │   │   └── numeric.py            # Numeric & financial evaluator
+│   │   ├── crud/                     # SQLAlchemy data access objects
+│   │   ├── models/                   # Declarative database models (compliance, tenders, bidders)
+│   │   ├── schemas/                  # Pydantic API schemas
+│   │   └── services/                 # Business logic & orchestration services
+│   │       └── compliance_service.py # Compliance evaluation service
+│   ├── tests/
+│   │   ├── compliance/               # 354+ compliance engine unit & integration tests
+│   │   └── ...                       # Document, tender, auth, and intelligence test suites
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/                         # React + TypeScript Vite frontend
+├── docs/                             # Documentation and guides
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
-## 🛠️ Prerequisites
+## 🛠️ Tech Stack
 
-- **Git**
-- **Python 3.12+**
-- **Node.js 20+** and **npm**
-- **Docker Desktop**
-- **VS Code** (or preferred IDE)
-
----
-
-## ⚙️ Environment Configuration
-
-Copy the sample environment file to create your local `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Key environment variables:
-- `APP_NAME`: Application name (`SIH26100`)
-- `APP_ENV`: Environment mode (`development`, `production`)
-- `BACKEND_HOST`: Host address for FastAPI (`127.0.0.1`)
-- `BACKEND_PORT`: Backend port (`8000`)
-- `FRONTEND_PORT`: Frontend port (`5173`)
-- `DATABASE_URL`: Database connection string (configured in future phases)
-- `STORAGE_PATH`: Local storage folder path (`./storage`)
-
-> **Important**: Never commit passwords, secret keys, or credentials to version control.
+- **Backend**: Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.0, PostgreSQL (Supabase), Alembic
+- **Document Processing**: PyMuPDF, PaddleOCR, Pillow
+- **Frontend**: React 18, TypeScript, Vite
+- **Testing**: pytest (627+ automated unit, integration, and database tests)
+- **Containerization**: Docker, Docker Compose
 
 ---
 
-## 💻 Local Development Setup
+## 💻 Local Setup & Execution
 
-### 1. Backend Setup (FastAPI)
+### 1. Backend Setup
 
 ```bash
-# Navigate to backend directory
 cd backend
 
 # Create virtual environment
@@ -131,99 +99,72 @@ python -m venv .venv
 # Activate virtual environment
 # Windows (PowerShell):
 .venv\Scripts\Activate.ps1
-# Windows (CMD):
-.venv\Scripts\activate.bat
 # Linux/macOS:
 source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Run backend development server
-uvicorn app.main:app --reload
+# Run database migrations
+alembic upgrade head
+
+# Start development server
+uvicorn app.main:app --reload --port 8000
 ```
 
-Accessible URLs:
-- **API Status Root**: [http://localhost:8000](http://localhost:8000)
-- **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
-- **Interactive Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Interactive API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Alternative Redoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
----
-
-### 2. Frontend Setup (React + Vite)
+### 2. Frontend Setup
 
 ```bash
-# Navigate to frontend directory
 cd frontend
-
-# Install node dependencies
 npm install
-
-# Start Vite development server
 npm run dev
 ```
 
-Accessible URL:
-- **Frontend App**: [http://localhost:5173](http://localhost:5173)
+- **Frontend Application**: [http://localhost:5173](http://localhost:5173)
 
 ---
 
 ## 🧪 Testing
 
-### Backend Unit & Integration Tests
+Run the comprehensive test suite:
 
 ```bash
 cd backend
-pytest
+
+# Run Phase 09 compliance engine tests (354 tests)
+pytest tests/compliance/ -v
+
+# Run full repository test suite (627 tests)
+pytest tests/ -q
 ```
 
 ---
 
-## 🐳 Docker Deployment
+## 📜 Compliance Engine Contract Scenarios
 
-Run both backend and frontend services using Docker Compose:
-
-```bash
-# Build containers
-docker compose build
-
-# Start services in foreground (or add -d for background)
-docker compose up
-
-# Stop services
-docker compose down
-```
-
-Services exposed:
-- **Backend API**: [http://localhost:8000](http://localhost:8000)
-- **Frontend UI**: [http://localhost:5173](http://localhost:5173)
+| Scenario | Requirement | Evidence | Evaluation Result |
+| :--- | :--- | :--- | :--- |
+| **1. Turnover Above Threshold** | Min turnover ₹15,00,000 | ₹21,00,000 | **`PASS`** |
+| **2. Turnover Below Threshold** | Min turnover ₹15,00,000 | ₹8,00,000 | **`FAIL`** |
+| **3. Missing Evidence** | Min turnover ₹15,00,000 | Evidence missing / null | **`REVIEW`** |
+| **4. Conjunction (Both Pass)** | Turnover $\ge$ 15L **AND** Exp $\ge$ 5 yrs | Both PASS | **`PASS`** |
+| **5. Conjunction (One Fails)** | Turnover $\ge$ 15L **AND** Exp $\ge$ 5 yrs | Exp FAIL (< 5 yrs) | **`FAIL`** |
+| **6. Disjunction (Pass + Fail)** | ISO 9001 **OR** ISO 14001 | ISO 9001 FAIL, ISO 14001 PASS | **`PASS`** |
+| **7. Conditional Requirement** | IF OEM == true THEN Auth == mandatory | OEM = true, Auth = missing | **`FAIL`** |
+| **8. Statutory Exemption** | Turnover requirement + Startup waiver | Startup == true | **`EXEMPT`** (passes externally) |
+| **9. Uncertain Relevance** | Experience in relevant category | Relevance flag = UNCERTAIN | **`REVIEW`** (no LLM guessing) |
 
 ---
 
-## 📐 Development Conventions
+## 🔒 Auditability & Immutability
 
-Please refer to [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for full details on:
-- **Git Branching Strategy**: `main`, `develop`, `feature/*`, `fix/*`
-- **Conventional Commits**: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
-- **Coding Standards**: PEP 8 (Python), Strict TypeScript, RESTful API principles
-- **Security & Reproducibility**
-
----
-
-## ✅ Phase 01 Acceptance Criteria
-
-- [x] Project structure created and verified
-- [x] FastAPI backend runs cleanly
-- [x] `/` root status endpoint operational
-- [x] `/health` endpoint operational
-- [x] Swagger documentation `/docs` loads
-- [x] Pytest backend test suite passes
-- [x] React + TypeScript frontend runs on Vite
-- [x] TypeScript builds successfully without errors
-- [x] Dockerfile configurations for backend and frontend
-- [x] Docker Compose multi-service orchestration configured
-- [x] `.env` and `.env.example` configured safely
-- [x] `.gitignore` comprehensive and verified
-- [x] Detailed `README.md` and `docs/DEVELOPMENT.md`
-- [x] No secrets or credentials committed
-- [x] No Phase 02+ business logic or premature dependencies added
+- Every evaluation outputs:
+  - `status`: `PASS`, `FAIL`, `REVIEW`, `EXEMPT`, or `NOT_APPLICABLE`
+  - `reason`: Deterministic human-readable explanation
+  - `evidence_reference`: File name, page, or evidence identifier
+  - `actual_value` & `required_value`: Audit snapshots stored in JSONB
+  - `evaluated_at`: High-resolution evaluation timestamp
+- Historical records in `compliance_results` are strictly immutable and never overwritten.

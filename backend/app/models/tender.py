@@ -11,8 +11,11 @@ from app.models.enums import TenderStatus
 
 if TYPE_CHECKING:
     from app.models.bidder import Bidder, TenderBidder
+    from app.models.compliance import ComplianceRequirement
     from app.models.document import Document
+    from app.models.tender_requirement import TenderRequirement
     from app.models.user import User
+
 
 
 class Tender(Base):
@@ -128,7 +131,18 @@ class Tender(Base):
         back_populates="tenders",
         viewonly=True,
     )
+    requirements: Mapped[List["TenderRequirement"]] = relationship(
+        "TenderRequirement",
+        back_populates="tender",
+        cascade="all, delete-orphan",
+    )
+    compliance_requirements: Mapped[List["ComplianceRequirement"]] = relationship(
+        "ComplianceRequirement",
+        back_populates="tender",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Tender id={self.id} tender_number={self.tender_number} status={self.status}>"
+
 

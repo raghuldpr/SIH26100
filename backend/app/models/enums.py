@@ -73,3 +73,18 @@ class ProcessingStatus(str, enum.Enum):
 
 DocumentProcessingStatus = ProcessingStatus
 
+
+class RequirementType(str, enum.Enum):
+    """Classification types for tender eligibility and compliance requirements."""
+    FINANCIAL = "FINANCIAL"
+    EXPERIENCE = "EXPERIENCE"
+    TECHNICAL = "TECHNICAL"
+    STATUTORY = "STATUTORY"
+    DOCUMENT = "DOCUMENT"
+    OEM = "OEM"
+    MII = "MII"
+    MSE = "MSE"
+    STARTUP = "STARTUP"
+    EXEMPTION = "EXEMPTION"
+    OTHER = "OTHER"
+

@@ -10,9 +10,11 @@ from app.db.base import Base
 from app.models.enums import BidderStatus
 
 if TYPE_CHECKING:
+    from app.models.compliance import BidderEvidenceModel, ComplianceResultModel
     from app.models.document import Document
     from app.models.tender import Tender
     from app.models.user import User
+
 
 
 class TenderBidder(Base):
@@ -170,6 +172,17 @@ class Bidder(Base):
         back_populates="bidders",
         viewonly=True,
     )
+    evidence: Mapped[List["BidderEvidenceModel"]] = relationship(
+        "BidderEvidenceModel",
+        back_populates="bidder",
+        cascade="all, delete-orphan",
+    )
+    compliance_results: Mapped[List["ComplianceResultModel"]] = relationship(
+        "ComplianceResultModel",
+        back_populates="bidder",
+        cascade="all, delete-orphan",
+    )
+
 
     def __init__(self, **kwargs):
         # Support backward-compatible organization_name parameter

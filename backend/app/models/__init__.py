@@ -6,10 +6,17 @@ from app.models.enums import (
     DocumentStatus,
     DocumentType,
     ProcessingStatus,
+    RequirementType,
     TenderStatus,
     UserRole,
 )
+from app.models.compliance import (
+    BidderEvidenceModel,
+    ComplianceRequirement,
+    ComplianceResultModel,
+)
 from app.models.tender import Tender
+from app.models.tender_requirement import TenderRequirement
 from app.models.user import User
 
 __all__ = [
@@ -18,6 +25,10 @@ __all__ = [
     "Bidder",
     "TenderBidder",
     "Document",
+    "TenderRequirement",
+    "ComplianceRequirement",
+    "BidderEvidenceModel",
+    "ComplianceResultModel",
     "UserRole",
     "TenderStatus",
     "BidderStatus",
@@ -25,5 +36,7 @@ __all__ = [
     "DocumentStatus",
     "ProcessingStatus",
     "DocumentProcessingStatus",
+    "RequirementType",
 ]
+
 

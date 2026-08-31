@@ -57,6 +57,13 @@ class Settings(BaseSettings):
         "image/png",
     ]
 
+    # Groq AI Gateway Configuration (Phase 08 - Ambiguous Clause Escalation Only)
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_TIMEOUT_SECONDS: float = 30.0
+    GROQ_MAX_RETRIES: int = 2
+    GROQ_TEMPERATURE: float = 0.0
+
 
 
 
