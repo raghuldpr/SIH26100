@@ -44,6 +44,20 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # Supabase Configuration
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_STORAGE_BUCKET: str = "documents"
+    MAX_UPLOAD_SIZE_MB: int = 10
+    MAX_UPLOAD_FILES_PER_REQUEST: int = 10
+    ALLOWED_DOCUMENT_EXTENSIONS: List[str] = [".pdf", ".jpg", ".jpeg", ".png"]
+    ALLOWED_DOCUMENT_MIME_TYPES: List[str] = [
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+    ]
+
+
 
 
 

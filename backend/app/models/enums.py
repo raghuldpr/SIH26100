@@ -10,7 +10,6 @@ class UserRole(str, enum.Enum):
     BIDDER = "BIDDER"
 
 
-
 class TenderStatus(str, enum.Enum):
     """Tender procurement lifecycle states."""
     DRAFT = "DRAFT"
@@ -22,11 +21,55 @@ class TenderStatus(str, enum.Enum):
     ARCHIVED = "ARCHIVED"
 
 
+class BidderStatus(str, enum.Enum):
+    """Bidder operational and eligibility states."""
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    SUSPENDED = "SUSPENDED"
+
+
 class DocumentType(str, enum.Enum):
-    """Document classification types."""
+    """Document classification types for Tenders and Bidders."""
+    # Tender Documents
+    TENDER = "TENDER"
+    TENDER_PDF = "TENDER_PDF"
     TENDER_NOTICE = "TENDER_NOTICE"
     TECHNICAL_BID = "TECHNICAL_BID"
     FINANCIAL_BID = "FINANCIAL_BID"
     COMPLIANCE_DECLARATION = "COMPLIANCE_DECLARATION"
     CERTIFICATE = "CERTIFICATE"
+    
+    # Bidder Compliance & Verification Documents
+    PAN = "PAN"
+    GST = "GST"
+    UDYAM = "UDYAM"
+    FINANCIAL_STATEMENT = "FINANCIAL_STATEMENT"
+    EXPERIENCE_CERTIFICATE = "EXPERIENCE_CERTIFICATE"
+    OEM_AUTHORIZATION = "OEM_AUTHORIZATION"
+    MII_DECLARATION = "MII_DECLARATION"
+    TURNOVER = "TURNOVER"
+    EXPERIENCE = "EXPERIENCE"
     OTHER = "OTHER"
+
+
+class DocumentStatus(str, enum.Enum):
+    """Lifecycle status of an uploaded document artifact."""
+    ACTIVE = "ACTIVE"
+    DELETED = "DELETED"
+    UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    ARCHIVED = "ARCHIVED"
+
+
+class ProcessingStatus(str, enum.Enum):
+    """Document processing and OCR / compliance extraction lifecycle status."""
+    NOT_PROCESSED = "NOT_PROCESSED"
+    PROCESSING = "PROCESSING"
+    PROCESSED = "PROCESSED"
+    FAILED = "FAILED"
+
+
+DocumentProcessingStatus = ProcessingStatus
+

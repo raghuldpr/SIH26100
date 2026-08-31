@@ -1,16 +1,25 @@
-from typing import Optional
+from typing import List, Optional, Union
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import AppException, NotFoundException
+from app.core.exceptions import AppException, BadRequestException, NotFoundException
+from app.crud.crud_bidder import crud_bidder
 from app.crud.crud_tender import crud_tender
 from app.dependencies.auth import get_current_user, require_role
 from app.dependencies.database import get_db
-from app.models.enums import TenderStatus, UserRole
+from app.models.enums import DocumentType, TenderStatus, UserRole
 from app.models.user import User
-from app.schemas.common import PaginatedResponse, PaginationMeta
+from app.schemas.bidder import TenderBidderResponse
+from app.schemas.common import PaginatedResponse, PaginationMeta, StandardResponse
+from app.schemas.document import DocumentResponse
 from app.schemas.tender import TenderCreate, TenderResponse, TenderUpdate
+from app.services.document_service import (
+    list_tender_documents,
+    upload_multiple_tender_documents,
+    upload_tender_document,
+)
+
 
 tenders_router = APIRouter(
     prefix="/tenders",
@@ -182,3 +191,211 @@ def archive_tender(
 
     archived_tender = crud_tender.archive(db, db_tender=tender)
     return TenderResponse.model_validate(archived_tender)
+
+
+# ---------------------------------------------------------
+# PHASE 05A — TENDER ↔ BIDDER RELATIONSHIP ENDPOINTS
+# ---------------------------------------------------------
+
+
+@tenders_router.post(
+    "/{tender_id}/bidders/{bidder_id}",
+    response_model=TenderBidderResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Assign Bidder to Tender",
+    description="Assigns an existing bidder to participate in a specific tender.",
+)
+def assign_bidder_to_tender_endpoint(
+    tender_id: UUID,
+    bidder_id: UUID,
+    current_user: User = Depends(
+        require_role(UserRole.PROCUREMENT_OFFICER, UserRole.ADMIN, UserRole.BUYER)
+    ),
+    db: Session = Depends(get_db),
+) -> TenderBidderResponse:
+    """Assigns bidder to tender, preventing duplicate assignments."""
+    assignment = crud_bidder.assign_bidder_to_tender(
+        db, tender_id=tender_id, bidder_id=bidder_id
+    )
+    bidder = assignment.bidder
+    return TenderBidderResponse(
+        id=bidder.id,
+        bidder_id=bidder.id,
+        company_name=bidder.company_name,
+        registration_number=bidder.registration_number,
+        gst_number=bidder.gst_number,
+        pan_number=bidder.pan_number,
+        contact_person=bidder.contact_person,
+        email=bidder.email,
+        phone=bidder.phone,
+        status=bidder.status,
+        assignment_timestamp=assignment.created_at,
+    )
+
+
+@tenders_router.delete(
+    "/{tender_id}/bidders/{bidder_id}",
+    response_model=StandardResponse[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Remove Bidder from Tender",
+    description="Removes a bidder's participation from a specific tender.",
+)
+def remove_bidder_from_tender_endpoint(
+    tender_id: UUID,
+    bidder_id: UUID,
+    current_user: User = Depends(
+        require_role(UserRole.PROCUREMENT_OFFICER, UserRole.ADMIN, UserRole.BUYER)
+    ),
+    db: Session = Depends(get_db),
+) -> StandardResponse[dict]:
+    """Removes a bidder from a tender."""
+    crud_bidder.remove_bidder_from_tender(db, tender_id=tender_id, bidder_id=bidder_id)
+    return StandardResponse[dict](
+        success=True,
+        data={"tender_id": str(tender_id), "bidder_id": str(bidder_id)},
+        message="Bidder successfully removed from tender.",
+    )
+
+
+@tenders_router.get(
+    "/{tender_id}/bidders",
+    response_model=PaginatedResponse[TenderBidderResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List Bidders for Tender",
+    description="Retrieves a paginated list of all bidders participating in a tender with assignment timestamps.",
+)
+def list_tender_bidders_endpoint(
+    tender_id: UUID,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[TenderBidderResponse]:
+    """Lists participating bidders for a tender."""
+    skip = (page - 1) * page_size
+    assignments, total_count = crud_bidder.get_tender_bidders(
+        db, tender_id=tender_id, skip=skip, limit=page_size
+    )
+
+    serialized_items = [
+        TenderBidderResponse(
+            id=a.bidder.id,
+            bidder_id=a.bidder.id,
+            company_name=a.bidder.company_name,
+            registration_number=a.bidder.registration_number,
+            gst_number=a.bidder.gst_number,
+            pan_number=a.bidder.pan_number,
+            contact_person=a.bidder.contact_person,
+            email=a.bidder.email,
+            phone=a.bidder.phone,
+            status=a.bidder.status,
+            assignment_timestamp=a.created_at,
+        )
+        for a in assignments
+    ]
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
+
+    return PaginatedResponse[TenderBidderResponse](
+        success=True,
+        data=serialized_items,
+        items=serialized_items,
+        page=page,
+        page_size=page_size,
+        total=total_count,
+        pagination=PaginationMeta(
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+    )
+
+
+# ---------------------------------------------------------
+# PHASE 05B — TENDER DOCUMENT MANAGEMENT ENDPOINTS
+# ---------------------------------------------------------
+
+
+@tenders_router.post(
+    "/{tender_id}/documents",
+    response_model=Union[DocumentResponse, List[DocumentResponse]],
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload Tender Document(s)",
+    description="Uploads one or multiple official Tender documents (RFP, Notice, etc.) to Supabase Storage.",
+)
+async def upload_tender_document_endpoint(
+    tender_id: UUID,
+    file: Optional[UploadFile] = File(None, description="Single tender RFP / Notice document"),
+    files: Optional[List[UploadFile]] = File(None, description="Multiple tender documents"),
+    document_type: DocumentType = Form(
+        DocumentType.TENDER_PDF,
+        description="Document type (e.g. TENDER, TENDER_PDF, TENDER_NOTICE)",
+    ),
+    current_user: User = Depends(
+        require_role(UserRole.PROCUREMENT_OFFICER, UserRole.ADMIN, UserRole.BUYER)
+    ),
+    db: Session = Depends(get_db),
+):
+    """Uploads one or multiple documents for a Tender."""
+    upload_list: List[UploadFile] = []
+    if files:
+        upload_list.extend(files)
+    elif file:
+        upload_list.append(file)
+
+    if not upload_list:
+        raise BadRequestException(message="No files provided for upload.")
+
+    if len(upload_list) == 1:
+        return await upload_tender_document(
+            db=db,
+            tender_id=tender_id,
+            file=upload_list[0],
+            document_type=document_type,
+        )
+    else:
+        return await upload_multiple_tender_documents(
+            db=db,
+            tender_id=tender_id,
+            files=upload_list,
+            document_type=document_type,
+        )
+
+
+
+@tenders_router.get(
+    "/{tender_id}/documents",
+    response_model=PaginatedResponse[DocumentResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List Tender Documents",
+    description="Retrieves a paginated list of uploaded documents for a Tender.",
+)
+def list_tender_documents_endpoint(
+    tender_id: UUID,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[DocumentResponse]:
+    """Lists all documents attached to a tender."""
+    skip = (page - 1) * page_size
+    items, total_count = list_tender_documents(
+        db=db, tender_id=tender_id, skip=skip, limit=page_size, current_user=current_user
+    )
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
+
+
+    return PaginatedResponse[DocumentResponse](
+        success=True,
+        data=items,
+        items=items,
+        page=page,
+        page_size=page_size,
+        total=total_count,
+        pagination=PaginationMeta(
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+    )

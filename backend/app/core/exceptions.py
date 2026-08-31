@@ -90,6 +90,30 @@ class BadRequestException(AppException):
         )
 
 
+class ForbiddenException(AppException):
+    """Access forbidden error."""
+
+    def __init__(self, message: str = "Access forbidden", details: Optional[Any] = None):
+        super().__init__(
+            message=message,
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="FORBIDDEN",
+            details=details,
+        )
+
+
+class UnauthorizedException(AppException):
+    """Authentication required error."""
+
+    def __init__(self, message: str = "Authentication required", details: Optional[Any] = None):
+        super().__init__(
+            message=message,
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="UNAUTHORIZED",
+            details=details,
+        )
+
+
 class DatabaseException(AppException):
     """Database query or connectivity error."""
 
@@ -100,6 +124,7 @@ class DatabaseException(AppException):
             code="DATABASE_ERROR",
             details=details,
         )
+
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:

@@ -10,6 +10,7 @@ from app.db.base import Base
 from app.models.enums import TenderStatus
 
 if TYPE_CHECKING:
+    from app.models.bidder import Bidder, TenderBidder
     from app.models.document import Document
     from app.models.user import User
 
@@ -115,6 +116,17 @@ class Tender(Base):
         "Document",
         back_populates="tender",
         cascade="all, delete-orphan",
+    )
+    tender_bidders: Mapped[List["TenderBidder"]] = relationship(
+        "TenderBidder",
+        back_populates="tender",
+        cascade="all, delete-orphan",
+    )
+    bidders: Mapped[List["Bidder"]] = relationship(
+        "Bidder",
+        secondary="tender_bidders",
+        back_populates="tenders",
+        viewonly=True,
     )
 
     def __repr__(self) -> str:

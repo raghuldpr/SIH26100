@@ -19,14 +19,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema: Add department, category, bid dates, and created_by to tenders."""
-    op.add_column('tenders', sa.Column('department', sa.String(length=255), nullable=True))
-    op.add_column('tenders', sa.Column('category', sa.String(length=100), nullable=True))
-    op.add_column('tenders', sa.Column('bid_start_date', sa.DateTime(timezone=True), nullable=True))
-    op.add_column('tenders', sa.Column('bid_end_date', sa.DateTime(timezone=True), nullable=True))
-    op.add_column(
-        'tenders',
-        sa.Column('created_by', sa.UUID(), sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True),
-    )
+    with op.batch_alter_table('tenders', schema=None) as batch_op:
+        batch_op.add_column(sa.Column('department', sa.String(length=255), nullable=True))
+        batch_op.add_column(sa.Column('category', sa.String(length=100), nullable=True))
+        batch_op.add_column(sa.Column('bid_start_date', sa.DateTime(timezone=True), nullable=True))
+        batch_op.add_column(sa.Column('bid_end_date', sa.DateTime(timezone=True), nullable=True))
+        batch_op.add_column(sa.Column('created_by', sa.UUID(), nullable=True))
 
     op.create_index(op.f('ix_tenders_department'), 'tenders', ['department'], unique=False)
     op.create_index(op.f('ix_tenders_category'), 'tenders', ['category'], unique=False)
@@ -39,9 +37,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_tenders_category'), table_name='tenders')
     op.drop_index(op.f('ix_tenders_department'), table_name='tenders')
 
-    op.drop_column('tenders', 'created_by')
-    op.drop_column('bid_end_date')
-    op.drop_column('bid_start_date')
-    op.drop_column('category')
-    op.drop_column('department')
-
+    with op.batch_alter_table('tenders', schema=None) as batch_op:
+        batch_op.drop_column('created_by')
+        batch_op.drop_column('bid_end_date')
+        batch_op.drop_column('bid_start_date')
+        batch_op.drop_column('category')
+        batch_op.drop_column('department')
