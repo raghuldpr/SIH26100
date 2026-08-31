@@ -52,13 +52,15 @@ def list_tenders(
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     status: Optional[TenderStatus] = Query(None, description="Filter by tender status"),
+    department: Optional[str] = Query(None, description="Filter by procuring department"),
+    category: Optional[str] = Query(None, description="Filter by procurement category"),
     search: Optional[str] = Query(None, description="Search term in title, number, org, or category"),
     my_tenders_only: bool = Query(True, description="Filter only tenders created by current user"),
     include_archived: bool = Query(False, description="Include archived / soft-deleted tenders"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PaginatedResponse[TenderResponse]:
-    """Lists accessible tenders with pagination."""
+    """Lists accessible tenders with pagination and filter criteria."""
     created_by_filter = current_user.id if (my_tenders_only and current_user.role != UserRole.ADMIN) else None
     if my_tenders_only and current_user.role == UserRole.ADMIN:
         created_by_filter = current_user.id
@@ -70,6 +72,8 @@ def list_tenders(
         limit=page_size,
         created_by=created_by_filter,
         status=status,
+        department=department,
+        category=category,
         search=search,
         include_archived=include_archived,
     )
@@ -80,6 +84,10 @@ def list_tenders(
     return PaginatedResponse[TenderResponse](
         success=True,
         data=serialized_items,
+        items=serialized_items,
+        page=page,
+        page_size=page_size,
+        total=total_count,
         pagination=PaginationMeta(
             total_count=total_count,
             page=page,
@@ -108,11 +116,18 @@ def get_tender(
     return TenderResponse.model_validate(tender)
 
 
-@tenders_router.patch(
+@tenders_router.put(
     "/{tender_id}",
     response_model=TenderResponse,
     status_code=status.HTTP_200_OK,
     summary="Update Tender",
+    description="Updates attributes of an existing tender. Enforces ownership and date validity.",
+)
+@tenders_router.patch(
+    "/{tender_id}",
+    response_model=TenderResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update Tender (Partial)",
     description="Updates attributes of an existing tender. Enforces ownership and date validity.",
 )
 def update_tender(

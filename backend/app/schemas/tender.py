@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import TenderStatus
 
@@ -19,29 +19,31 @@ class TenderBase(BaseModel):
     """Base tender properties shared across request and response schemas."""
     tender_number: str = Field(
         ...,
-        min_length=3,
+        min_length=1,
         max_length=100,
         description="Official unique tender reference number",
     )
     title: str = Field(
         ...,
-        min_length=3,
+        min_length=1,
         max_length=500,
         description="Descriptive title of the procurement tender",
     )
     organization: str = Field(
         ...,
-        min_length=2,
+        min_length=1,
         max_length=255,
         description="Procuring organization name",
     )
-    department: Optional[str] = Field(
-        None,
+    department: str = Field(
+        default="General",
+        min_length=1,
         max_length=255,
         description="Procuring department or division",
     )
-    category: Optional[str] = Field(
-        None,
+    category: str = Field(
+        default="General",
+        min_length=1,
         max_length=100,
         description="Procurement classification category",
     )
@@ -62,6 +64,13 @@ class TenderBase(BaseModel):
         description="Procurement lifecycle state",
     )
 
+    @field_validator("tender_number", "title", "organization", "department", "category", mode="after")
+    @classmethod
+    def validate_non_empty_strings(cls, v: str) -> str:
+        if v is not None and (not v or not v.strip()):
+            raise ValueError("Field cannot be empty or whitespace only")
+        return v.strip() if v is not None else v
+
     @model_validator(mode="after")
     def validate_bid_dates(self) -> "TenderBase":
         """Validates that bid_end_date is not earlier than bid_start_date."""
@@ -79,14 +88,24 @@ class TenderCreate(TenderBase):
 
 class TenderUpdate(BaseModel):
     """Schema for updating an existing tender."""
-    title: Optional[str] = Field(None, min_length=3, max_length=500)
-    organization: Optional[str] = Field(None, min_length=2, max_length=255)
-    department: Optional[str] = Field(None, max_length=255)
-    category: Optional[str] = Field(None, max_length=100)
+    tender_number: Optional[str] = Field(None, min_length=1, max_length=100)
+    title: Optional[str] = Field(None, min_length=1, max_length=500)
+    organization: Optional[str] = Field(None, min_length=1, max_length=255)
+    department: Optional[str] = Field(None, min_length=1, max_length=255)
+    category: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = None
     bid_start_date: Optional[datetime] = None
     bid_end_date: Optional[datetime] = None
     status: Optional[TenderStatus] = None
+
+    @field_validator("tender_number", "title", "organization", "department", "category", mode="after")
+    @classmethod
+    def validate_non_empty_optional_strings(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            if not v or not v.strip():
+                raise ValueError("Field cannot be empty or whitespace only")
+            return v.strip()
+        return v
 
     @model_validator(mode="after")
     def validate_update_bid_dates(self) -> "TenderUpdate":
@@ -96,7 +115,6 @@ class TenderUpdate(BaseModel):
         if start_utc and end_utc and end_utc < start_utc:
             raise ValueError("bid_end_date must not be earlier than bid_start_date")
         return self
-
 
 
 class TenderResponse(BaseModel):

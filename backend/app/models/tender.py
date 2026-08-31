@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
@@ -18,6 +18,12 @@ class Tender(Base):
     """Tender procurement entity representing a published or draft RFP/GeM bid."""
 
     __tablename__ = "tenders"
+    __table_args__ = (
+        CheckConstraint(
+            "bid_end_date >= bid_start_date",
+            name="check_tender_bid_end_after_start_date",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -45,26 +51,31 @@ class Tender(Base):
         nullable=False,
         doc="Procuring organization name",
     )
-    department: Mapped[Optional[str]] = mapped_column(
+    department: Mapped[str] = mapped_column(
         String(255),
         index=True,
-        nullable=True,
+        nullable=False,
+        default="General",
         doc="Procuring department / division",
     )
-    category: Mapped[Optional[str]] = mapped_column(
+    category: Mapped[str] = mapped_column(
         String(100),
         index=True,
-        nullable=True,
+        nullable=False,
+        default="General",
         doc="Procurement item/service classification category",
     )
-    bid_start_date: Mapped[Optional[datetime]] = mapped_column(
+    bid_start_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        nullable=True,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
         doc="Bid submission commencement datetime (UTC)",
     )
-    bid_end_date: Mapped[Optional[datetime]] = mapped_column(
+    bid_end_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        nullable=True,
+        index=True,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
         doc="Bid submission deadline datetime (UTC)",
     )
     status: Mapped[TenderStatus] = mapped_column(

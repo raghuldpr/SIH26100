@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api.v1.endpoints.tenders import tenders_router
 from app.api.v1.router import api_v1_router
 from app.config import settings
 from app.core.exceptions import register_exception_handlers
@@ -54,7 +55,8 @@ if settings.CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-# Mount versioned API routes
+# Mount API routes
+app.include_router(tenders_router, prefix="/api")
 app.include_router(api_v1_router, prefix=settings.API_V1_STR)
 
 

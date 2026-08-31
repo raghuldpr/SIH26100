@@ -14,9 +14,11 @@ class UserRole(str, enum.Enum):
 class TenderStatus(str, enum.Enum):
     """Tender procurement lifecycle states."""
     DRAFT = "DRAFT"
+    OPEN = "OPEN"
     PUBLISHED = "PUBLISHED"
     EVALUATING = "EVALUATING"
     CLOSED = "CLOSED"
+    CANCELLED = "CANCELLED"
     ARCHIVED = "ARCHIVED"
 
 

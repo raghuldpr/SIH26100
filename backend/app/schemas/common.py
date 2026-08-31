@@ -53,4 +53,8 @@ class PaginatedResponse(BaseModel, Generic[DataT]):
     """Generic envelope for paginated collection responses."""
     success: bool = Field(True, description="Indicates request success state")
     data: List[DataT] = Field(default_factory=list, description="List of items for the requested page")
+    items: List[DataT] = Field(default_factory=list, description="List of items for standard paginated schema")
+    page: int = Field(1, ge=1, description="Current page index (1-based)")
+    page_size: int = Field(20, ge=1, le=100, description="Number of records per page")
+    total: int = Field(0, ge=0, description="Total number of matching records")
     pagination: PaginationMeta = Field(..., description="Pagination metadata")
