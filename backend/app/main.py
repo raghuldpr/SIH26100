@@ -1,6 +1,14 @@
-from fastapi import FastAPI
+import logging
+from fastapi import Depends, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.config import settings
+from app.db.session import get_db
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="SIH26100 API",
@@ -31,5 +39,33 @@ def root():
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint."""
+    """Application health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/health/db")
+def db_health_check(db: Session = Depends(get_db)):
+    """Database connectivity health check endpoint."""
+    try:
+        result = db.execute(text("SELECT 1")).scalar()
+        if result == 1:
+            return {
+                "status": "healthy",
+                "database": "connected",
+            }
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unhealthy",
+                "database": "unexpected_response",
+            },
+        )
+    except Exception as e:
+        logger.error(f"Database health check failed: {type(e).__name__}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+            },
+        )
