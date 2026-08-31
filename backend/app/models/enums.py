@@ -3,10 +3,12 @@ import enum
 
 class UserRole(str, enum.Enum):
     """User access control roles."""
+    PROCUREMENT_OFFICER = "PROCUREMENT_OFFICER"
     ADMIN = "ADMIN"
+    REVIEWER = "REVIEWER"
     BUYER = "BUYER"
     BIDDER = "BIDDER"
-    REVIEWER = "REVIEWER"
+
 
 
 class TenderStatus(str, enum.Enum):

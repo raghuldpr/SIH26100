@@ -12,6 +12,7 @@ from app.models.enums import UserRole
 
 if TYPE_CHECKING:
     from app.models.bidder import Bidder
+    from app.models.tender import Tender
 
 
 class User(Base):
@@ -41,9 +42,10 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, native_enum=False, length=50),
         nullable=False,
-        default=UserRole.BIDDER,
+        default=UserRole.PROCUREMENT_OFFICER,
         index=True,
     )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -69,6 +71,12 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    created_tenders: Mapped[List["Tender"]] = relationship(
+        "Tender",
+        back_populates="creator",
+        foreign_keys="Tender.created_by",
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email} role={self.role}>"
+

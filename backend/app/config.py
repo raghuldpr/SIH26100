@@ -1,3 +1,4 @@
+from typing import List, Union
 from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,11 +13,52 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "SIH26100"
     APP_ENV: str = "development"
+    PROJECT_DESCRIPTION: str = "AI-powered Bid Compliance Verification Platform for GeM procurement"
+    VERSION: str = "0.1.0"
+    API_V1_STR: str = "/api/v1"
+
     BACKEND_HOST: str = "127.0.0.1"
     BACKEND_PORT: int = 8000
     FRONTEND_PORT: int = 5173
+
+    CORS_ORIGINS: Union[List[str], str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ]
+
     DATABASE_URL: str = ""
     STORAGE_PATH: str = "./storage"
+
+    # Database connection pooling parameters
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 1800  # Recycle connections after 30 minutes
+
+    # Logging configuration
+    LOG_LEVEL: str = "INFO"
+
+    # JWT Authentication configuration
+    JWT_SECRET_KEY: str = "sih26100-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
+
+
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            if not v or v.strip() == "":
+                return []
+            if v.strip() == "*":
+                return ["*"]
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            return [str(i).strip() for i in v if str(i).strip()]
+        return []
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -33,3 +75,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

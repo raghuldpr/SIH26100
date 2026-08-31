@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Enum, String, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID
 
@@ -11,6 +11,7 @@ from app.models.enums import TenderStatus
 
 if TYPE_CHECKING:
     from app.models.document import Document
+    from app.models.user import User
 
 
 class Tender(Base):
@@ -28,6 +29,7 @@ class Tender(Base):
         unique=True,
         index=True,
         nullable=False,
+        doc="Unique official tender reference number",
     )
     title: Mapped[str] = mapped_column(
         String(500),
@@ -41,12 +43,42 @@ class Tender(Base):
         String(255),
         index=True,
         nullable=False,
+        doc="Procuring organization name",
+    )
+    department: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        index=True,
+        nullable=True,
+        doc="Procuring department / division",
+    )
+    category: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        index=True,
+        nullable=True,
+        doc="Procurement item/service classification category",
+    )
+    bid_start_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Bid submission commencement datetime (UTC)",
+    )
+    bid_end_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Bid submission deadline datetime (UTC)",
     )
     status: Mapped[TenderStatus] = mapped_column(
         Enum(TenderStatus, native_enum=False, length=50),
         nullable=False,
         default=TenderStatus.DRAFT,
         index=True,
+    )
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        doc="User ID of the creating procurement officer",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -63,6 +95,11 @@ class Tender(Base):
     )
 
     # Relationships
+    creator: Mapped[Optional["User"]] = relationship(
+        "User",
+        back_populates="created_tenders",
+        foreign_keys=[created_by],
+    )
     documents: Mapped[List["Document"]] = relationship(
         "Document",
         back_populates="tender",
@@ -71,3 +108,4 @@ class Tender(Base):
 
     def __repr__(self) -> str:
         return f"<Tender id={self.id} tender_number={self.tender_number} status={self.status}>"
+
