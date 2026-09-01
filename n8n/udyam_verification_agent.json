@@ -1,0 +1,333 @@
+[
+  {
+    "id": "SihUdyamAgentProto01",
+    "name": "🔹 SIH — UDYAM/MSME Verification Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "udyam-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/udyam-verification",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "udyam-trigger-webhook",
+        "name": "📥 Udyam Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-udyam-verification"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const udyam = (data.udyam || data.udyam_registration || \"UDYAM-TEST-001\").toString().trim().toUpperCase();\n  const bidder_name = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  return {\n    json: {\n      request_id: data.request_id || \"REQ-UDYAM-DEMO\",\n      bidder_name,\n      udyam,\n      agent: \"UDYAM_AGENT\",\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "udyam-input-validation",
+        "name": "🔍 Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340]
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ `Analyze Udyam/MSME compliance for bidder: '${$json.bidder_name}' with Udyam Registration: '${$json.udyam}'` }}",
+          "options": {
+            "systemMessage": "You are an Udyam/MSME verification specialist for a procurement bid compliance system.\n\nAnalyze:\n- Udyam registration number\n- registered business name\n- MSME classification information\n- registration status\n- consistency with bidder identity\n- suspicious or inconsistent evidence\n\nFor this prototype, registry verification is MOCK verification.\n\nNever claim that a real government database was accessed.\n\nReturn only the structured verification result requested by the output schema."
+          }
+        },
+        "id": "udyam-ai-agent",
+        "name": "🤖 UDYAM AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [780, 340],
+        "notes": "SPECIALIZED UDYAM AI AGENT\n🔄 RETRY — MAX 3 ATTEMPTS (2000ms)\nFalls back smoothly if Groq is unconfigured",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "model": "llama-3.3-70b-versatile",
+          "options": {}
+        },
+        "id": "udyam-groq-model",
+        "name": "⚡ Groq Chat Model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [660, 560],
+        "credentials": {
+          "groqApi": {
+            "id": "groq_api_credential",
+            "name": "Groq Account (Manual Config Required)"
+          }
+        },
+        "notes": "⚠️ REQUIRES GROQ API KEY IN N8N CREDENTIALS"
+      },
+      {
+        "parameters": {
+          "schemaType": "manualJson",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"agent\": { \"type\": \"string\" },\n    \"status\": { \"type\": \"string\", \"enum\": [\"VERIFIED\", \"NOT_VERIFIED\", \"REVIEW\"] },\n    \"confidence\": { \"type\": \"number\" },\n    \"evidence\": { \"type\": \"object\" },\n    \"issues\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"risk_level\": { \"type\": \"string\", \"enum\": [\"LOW\", \"MEDIUM\", \"HIGH\"] }\n  },\n  \"required\": [\"agent\", \"status\", \"confidence\", \"evidence\", \"issues\", \"risk_level\"]\n}"
+        },
+        "id": "udyam-output-parser",
+        "name": "📋 Structured Output Parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "position": [900, 560]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst MOCK_UDYAM_REGISTRY = {\n  \"UDYAM-TEST-001\": {\n    enterprise_name: \"ABC Technologies Pvt Ltd\",\n    classification: \"SMALL\",\n    major_activity: \"SERVICES\",\n    status: \"ACTIVE_VERIFIED\",\n    state: \"Maharashtra\",\n    district: \"Mumbai Suburban\",\n    nic_codes: [\"6201 - Computer programming activities\", \"6202 - IT Consultancy\"],\n    date_of_commencement: \"2016-08-15\",\n    msme_benefit_eligible: true\n  },\n  \"UDYAM-MH-12-0012345\": {\n    enterprise_name: \"ABC Technologies Pvt Ltd\",\n    classification: \"SMALL\",\n    major_activity: \"SERVICES\",\n    status: \"ACTIVE_VERIFIED\",\n    state: \"Maharashtra\",\n    district: \"Pune\",\n    nic_codes: [\"6201\", \"6202\"],\n    date_of_commencement: \"2016-08-15\",\n    msme_benefit_eligible: true\n  },\n  \"UDYAM-DL-01-0099999\": {\n    enterprise_name: \"Mismatch Enterprises Ltd\",\n    classification: \"MICRO\",\n    major_activity: \"MANUFACTURING\",\n    status: \"ACTIVE_VERIFIED\",\n    state: \"Delhi\",\n    msme_benefit_eligible: true\n  },\n  \"UDYAM-KA-03-0000000\": {\n    enterprise_name: \"Expired MSME Unit\",\n    classification: \"MICRO\",\n    status: \"EXPIRED_SUSPENDED\",\n    state: \"Karnataka\",\n    msme_benefit_eligible: false\n  }\n};\n\nlet rawInput = {};\ntry {\n  rawInput = $('🔍 Input Validation').first().json || {};\n} catch (e) {\n  rawInput = {};\n}\n\nreturn items.map(item => {\n  const data = item.json;\n  const udyam = (data.udyam || (data.evidence && data.evidence.udyam) || (data.evidence && data.evidence.udyam_registration) || rawInput.udyam || (rawInput.raw_input && rawInput.raw_input.udyam) || \"\").toString().toUpperCase().trim();\n  const bidderName = (data.bidder_name || rawInput.bidder_name || (rawInput.raw_input && rawInput.raw_input.bidder_name) || \"ABC Technologies Pvt Ltd\").toString().trim();\n  const registryEntry = MOCK_UDYAM_REGISTRY[udyam] || null;\n\n  return {\n    json: {\n      ...data,\n      bidder_name: bidderName,\n      udyam,\n      mock_record_found: !!registryEntry,\n      mock_udyam_record: registryEntry\n    }\n  };\n});"
+        },
+        "id": "udyam-mock-registry",
+        "name": "🏛 Mock MSME Registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1080, 340],
+        "notes": "MOCK UDYAM / MSME REGISTRY\nSupports: 1. Valid Active Small 2. Mismatch 3. Expired"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n// Accepts official UDYAM-XX-00-0000000 OR prototype demo UDYAM-TEST-000\nconst UDYAM_OFFICIAL_REGEX = /^UDYAM-[A-Z]{2}-[0-9]{2}-[0-9]{7}$/;\nconst UDYAM_DEMO_REGEX = /^UDYAM-TEST-[0-9]{3}$/;\n\nreturn items.map(item => {\n  const data = item.json;\n  const udyam = data.udyam || \"\";\n  const formatValid = UDYAM_OFFICIAL_REGEX.test(udyam) || UDYAM_DEMO_REGEX.test(udyam);\n  \n  return {\n    json: {\n      ...data,\n      format_valid: formatValid,\n      format_type: UDYAM_OFFICIAL_REGEX.test(udyam) ? \"OFFICIAL_STATUTORY\" : (UDYAM_DEMO_REGEX.test(udyam) ? \"PROTOTYPE_DEMO\" : \"INVALID\")\n    }\n  };\n});"
+        },
+        "id": "udyam-format-validation",
+        "name": "⚙️ Udyam Format Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1360, 340],
+        "notes": "STATUTORY MSME FORMAT\nValidates official pattern UDYAM-XX-00-0000000 & prototype demo key"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  const bidderName = (data.bidder_name || \"\").toUpperCase().trim();\n  const record = data.mock_udyam_record;\n  const issues = [];\n  let status = \"VERIFIED\";\n  let confidence = 0.97;\n  let riskLevel = \"LOW\";\n\n  if (!data.format_valid) {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.95;\n    riskLevel = \"HIGH\";\n    issues.push(`Udyam format invalid: '${data.udyam}' does not conform to official Ministry of MSME pattern`);\n  } else if (!data.mock_record_found) {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.90;\n    riskLevel = \"HIGH\";\n    issues.push(`Udyam registration '${data.udyam}' not found in mock MSME registry`);\n  } else if (record.status !== \"ACTIVE_VERIFIED\") {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.96;\n    riskLevel = \"HIGH\";\n    issues.push(`MSME registration is '${record.status}' for unit ${record.enterprise_name}`);\n  } else {\n    const regName = record.enterprise_name.toUpperCase().trim();\n    const exactMatch = bidderName === regName;\n    const partialMatch = bidderName.includes(regName) || regName.includes(bidderName);\n\n    if (!exactMatch && !partialMatch) {\n      status = \"REVIEW\";\n      confidence = 0.60;\n      riskLevel = \"MEDIUM\";\n      issues.push(`Name consistency mismatch: Bidder name '${data.bidder_name}' differs from MSME registered enterprise '${record.enterprise_name}'`);\n    } else {\n      status = \"VERIFIED\";\n      confidence = 0.97;\n      riskLevel = \"LOW\";\n    }\n  }\n\n  return {\n    json: {\n      ...data,\n      name_check_status: status,\n      name_check_confidence: confidence,\n      name_check_risk: riskLevel,\n      name_check_issues: issues\n    }\n  };\n});"
+        },
+        "id": "udyam-name-check",
+        "name": "🔗 Name Consistency Check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1640, 340],
+        "notes": "NAME RECONCILIATION\nMatches bidder name against registered MSME enterprise name"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  const record = data.mock_udyam_record;\n  \n  return {\n    json: {\n      agent: \"UDYAM_AGENT\",\n      status: data.name_check_status,\n      confidence: data.name_check_confidence,\n      evidence: {\n        udyam_registration: data.udyam,\n        enterprise_name: record ? record.enterprise_name : null,\n        classification: record ? record.classification : null,\n        major_activity: record ? record.major_activity : null,\n        status: record ? record.status : \"UNREGISTERED\",\n        state: record ? record.state : null,\n        nic_codes: record ? record.nic_codes : [],\n        msme_exemption_eligible: record ? record.msme_benefit_eligible : false,\n        registry_source: \"MOCK_MINISTRY_OF_MSME_PORTAL\"\n      },\n      issues: data.name_check_issues || [],\n      risk_level: data.name_check_risk,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "udyam-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1920, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "udyam-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2160, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"UDYAM_AGENT\",\n    status: \"REVIEW\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Udyam verification agent encountered an execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Udyam verification agent failed\"],\n    risk_level: \"MEDIUM\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "udyam-error-fallback",
+        "name": "🛑 Udyam Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 700],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## 🟦 SECTION 1: TRIGGER & INPUT\nAccepts Udyam verification requests via:\n1. Execute Workflow (from Master Orchestrator)\n2. Direct Webhook (for independent testing)\nValidates Udyam registration ID and bidder identity.",
+          "height": 180,
+          "width": 420,
+          "color": 4
+        },
+        "id": "udyam-note-input",
+        "name": "Note - Input & Trigger",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [200, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟪 SECTION 2: AI AGENT ANALYSIS\nSpecialized Udyam AI Agent powered by Groq Llama-3.3-70b-versatile.\nAnalyzes enterprise classification, activity sector, and validity.\nConfigured with 3 retries (2000ms) and non-blocking fallback.",
+          "height": 180,
+          "width": 440,
+          "color": 6
+        },
+        "id": "udyam-note-ai",
+        "name": "Note - AI Analysis",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [680, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟧 SECTION 3: MOCK REGISTRY & FORMAT CHECKS\nValidates official statutory format UDYAM-XX-00-0000000 or demo key.\nMatches enterprise classification (Micro / Small / Medium).\nVerifies MSME exemption eligibility for tender qualification.",
+          "height": 180,
+          "width": 460,
+          "color": 3
+        },
+        "id": "udyam-note-registry",
+        "name": "Note - Registry & Format",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1180, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟩 SECTION 4: CANONICAL STANDARDIZED RESULT\nReturns canonical schema:\n`{ agent: 'UDYAM_AGENT', status, confidence, evidence, issues, risk_level, timestamp }`\nCompatible with Master Orchestrator result aggregator.",
+          "height": 180,
+          "width": 440,
+          "color": 7
+        },
+        "id": "udyam-note-output",
+        "name": "Note - Result & Reliability",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1700, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Udyam Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Input Validation": {
+        "main": [
+          [
+            {
+              "node": "🤖 UDYAM AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚡ Groq Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "🤖 UDYAM AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📋 Structured Output Parser": {
+        "ai_outputParser": [
+          [
+            {
+              "node": "🤖 UDYAM AI Agent",
+              "type": "ai_outputParser",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🤖 UDYAM AI Agent": {
+        "main": [
+          [
+            {
+              "node": "🏛 Mock MSME Registry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏛 Mock MSME Registry": {
+        "main": [
+          [
+            {
+              "node": "⚙️ Udyam Format Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚙️ Udyam Format Validation": {
+        "main": [
+          [
+            {
+              "node": "🔗 Name Consistency Check",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔗 Name Consistency Check": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🛑 Udyam Error Fallback": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

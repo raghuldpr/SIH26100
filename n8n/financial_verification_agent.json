@@ -1,0 +1,216 @@
+[
+  {
+    "id": "SihFinancialAgentProto01",
+    "name": "🔹 SIH — Financial Verification Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "fin-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/financial-verification",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "fin-trigger-webhook",
+        "name": "📥 Financial Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-financial-verification"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nfunction isNumeric(val) {\n  if (typeof val === 'number') return !isNaN(val) && isFinite(val);\n  if (typeof val !== 'string') return false;\n  const trimmed = val.trim();\n  if (trimmed === '') return false;\n  const num = Number(trimmed);\n  return !isNaN(num) && isFinite(num);\n}\n\nfunction parseNumeric(val) {\n  if (typeof val === 'number') return val;\n  return Number(String(val).trim());\n}\n\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  \n  const requestId = data.request_id || \"REQ-FIN-DEMO\";\n  const tenderId = data.tender_id || \"TENDER-FIN-DEMO\";\n  const bidderId = data.bidder_id || \"BIDDER-FIN-DEMO\";\n  const bidderName = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  \n  const reqs = data.financial_requirements || {};\n  const parsedReqs = {};\n  \n  // Validate requirements numbers\n  for (const [key, val] of Object.entries(reqs)) {\n    if (val !== null && val !== undefined) {\n      if (!isNumeric(val)) {\n        errors.push(`Invalid financial requirement: '${key}' must be a valid number, received '${val}'`);\n      } else {\n        const num = parseNumeric(val);\n        if (num < 0) {\n          errors.push(`Invalid financial requirement: '${key}' cannot be negative (${num})`);\n        } else {\n          parsedReqs[key] = num;\n        }\n      }\n    }\n  }\n  \n  // Set default period to 3 years if average turnover required but period unspecified\n  if (parsedReqs.average_turnover !== undefined && !parsedReqs.turnover_period_years) {\n    parsedReqs.turnover_period_years = 3;\n  }\n  \n  const evidence = data.financial_evidence || null;\n  let parsedEvidence = null;\n  \n  if (evidence && typeof evidence === 'object') {\n    parsedEvidence = {};\n    \n    // Turnover\n    if (evidence.turnover !== undefined && evidence.turnover !== null) {\n      if (typeof evidence.turnover === 'object' && !Array.isArray(evidence.turnover)) {\n        parsedEvidence.turnover = {};\n        for (const [year, val] of Object.entries(evidence.turnover)) {\n          if (!isNumeric(val)) {\n            errors.push(`Invalid financial data: turnover for year '${year}' contains non-numeric value '${val}'`);\n          } else {\n            const num = parseNumeric(val);\n            if (num < 0) {\n              errors.push(`Invalid financial data: turnover for year '${year}' cannot be negative (${num})`);\n            } else {\n              parsedEvidence.turnover[year] = num;\n            }\n          }\n        }\n      } else if (Array.isArray(evidence.turnover)) {\n        parsedEvidence.turnover = {};\n        evidence.turnover.forEach((val, idx) => {\n          const yearKey = `Year_${idx + 1}`;\n          if (!isNumeric(val)) {\n            errors.push(`Invalid financial data: turnover item at index ${idx} contains non-numeric value '${val}'`);\n          } else {\n            const num = parseNumeric(val);\n            if (num < 0) {\n              errors.push(`Invalid financial data: turnover cannot be negative (${num})`);\n            } else {\n              parsedEvidence.turnover[yearKey] = num;\n            }\n          }\n        });\n      } else {\n        errors.push(`Invalid financial data: 'turnover' must be an object with year keys or an array, received '${evidence.turnover}'`);\n      }\n    }\n    \n    // Net Worth\n    if (evidence.net_worth !== undefined && evidence.net_worth !== null) {\n      if (!isNumeric(evidence.net_worth)) {\n        errors.push(`Invalid financial data: 'net_worth' must be a valid number, received '${evidence.net_worth}'`);\n      } else {\n        parsedEvidence.net_worth = parseNumeric(evidence.net_worth);\n      }\n    }\n    \n    // Working Capital\n    if (evidence.working_capital !== undefined && evidence.working_capital !== null) {\n      if (!isNumeric(evidence.working_capital)) {\n        errors.push(`Invalid financial data: 'working_capital' must be a valid number, received '${evidence.working_capital}'`);\n      } else {\n        parsedEvidence.working_capital = parseNumeric(evidence.working_capital);\n      }\n    }\n  }\n  \n  return {\n    json: {\n      request_id: requestId,\n      tender_id: tenderId,\n      bidder_id: bidderId,\n      bidder_name: bidderName,\n      financial_requirements: parsedReqs,\n      financial_evidence: parsedEvidence,\n      raw_evidence_provided: !!evidence,\n      validation_errors: errors,\n      valid_schema: errors.length === 0,\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "fin-input-validation",
+        "name": "🔍 Financial Input & Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340],
+        "notes": "STRICT SCHEMA VALIDATION\nEnforces numeric validity without silent coercion"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\n// Mock financial filings registry database\nconst MOCK_FINANCIAL_REGISTRY = {\n  \"ABC Technologies Pvt Ltd\": {\n    source: \"MCA_ROC_FILINGS\",\n    filing_status: \"COMPLIANT\",\n    ca_certified: true,\n    udin: \"2409603R1ZMCA8812\",\n    turnover: {\n      \"2023-24\": 1800000,\n      \"2024-25\": 2100000,\n      \"2025-26\": 2400000\n    },\n    net_worth: 1200000,\n    working_capital: 800000,\n    balance_sheet_filed: true\n  },\n  \"Mismatch Enterprises Ltd\": {\n    source: \"MCA_ROC_FILINGS\",\n    filing_status: \"DEFICIT\",\n    ca_certified: true,\n    udin: \"2401234P1ZMCA9941\",\n    turnover: {\n      \"2023-24\": 800000,\n      \"2024-25\": 1000000,\n      \"2025-26\": 1200000\n    },\n    net_worth: 600000,\n    working_capital: 300000,\n    balance_sheet_filed: true\n  },\n  \"Cancelled Vendor Pvt Ltd\": {\n    source: \"MCA_ROC_FILINGS\",\n    filing_status: \"NON_COMPLIANT\",\n    ca_certified: false,\n    turnover: {},\n    net_worth: -500000,\n    working_capital: -200000,\n    balance_sheet_filed: false\n  }\n};\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  if (!data.valid_schema) {\n    return { json: { ...data, registry_record: null } };\n  }\n  \n  let resolvedEvidence = data.financial_evidence;\n  let registryRecord = null;\n  \n  // If explicit evidence was not provided or incomplete, supplement from registry\n  if (!data.raw_evidence_provided || (!resolvedEvidence || Object.keys(resolvedEvidence).length === 0)) {\n    registryRecord = MOCK_FINANCIAL_REGISTRY[data.bidder_name] || null;\n    if (registryRecord) {\n      resolvedEvidence = {\n        turnover: registryRecord.turnover,\n        net_worth: registryRecord.net_worth,\n        working_capital: registryRecord.working_capital\n      };\n    }\n  }\n  \n  return {\n    json: {\n      ...data,\n      resolved_evidence: resolvedEvidence,\n      registry_record: registryRecord\n    }\n  };\n});"
+        },
+        "id": "fin-mock-registry",
+        "name": "🏛 Mock Financial Registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 340],
+        "notes": "MCA / ROC AUDITED FINANCIALS\nProvides audited annual filings, UDIN, and balance sheet records"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  if (!data.valid_schema) {\n    return {\n      json: {\n        ...data,\n        calculated_metrics: null,\n        compliance_checks: [],\n        calculation_error: data.validation_errors\n      }\n    };\n  }\n  \n  const reqs = data.financial_requirements || {};\n  const evidence = data.resolved_evidence || {};\n  const checks = [];\n  const issues = [];\n  \n  let turnoverByYear = null;\n  let avgTurnover = null;\n  let turnoverSum = 0;\n  let yearCount = 0;\n  \n  // 1. Turnover Evaluation\n  if (evidence.turnover && typeof evidence.turnover === 'object' && Object.keys(evidence.turnover).length > 0) {\n    turnoverByYear = evidence.turnover;\n    const years = Object.keys(turnoverByYear).sort();\n    const periodYears = reqs.turnover_period_years || years.length || 3;\n    \n    // Take the most recent periodYears\n    const evalYears = years.slice(-periodYears);\n    evalYears.forEach(y => {\n      turnoverSum += turnoverByYear[y];\n      yearCount++;\n    });\n    \n    avgTurnover = yearCount > 0 ? (turnoverSum / yearCount) : null;\n    \n    // Rule: AVERAGE_TURNOVER\n    if (reqs.average_turnover !== undefined && reqs.average_turnover !== null) {\n      const passed = avgTurnover !== null && avgTurnover >= reqs.average_turnover;\n      checks.push({\n        rule: \"AVERAGE_TURNOVER\",\n        required: reqs.average_turnover,\n        actual: avgTurnover,\n        period_years: yearCount,\n        result: passed ? \"PASS\" : \"FAIL\"\n      });\n      if (!passed) {\n        issues.push(`Average turnover ₹${avgTurnover !== null ? avgTurnover.toLocaleString('en-IN') : 0} is below required minimum ₹${reqs.average_turnover.toLocaleString('en-IN')}`);\n      }\n    }\n    \n    // Rule: MINIMUM_ANNUAL_TURNOVER (every year must satisfy)\n    if (reqs.minimum_annual_turnover !== undefined && reqs.minimum_annual_turnover !== null) {\n      let allYearsPass = true;\n      const failingYears = [];\n      \n      evalYears.forEach(y => {\n        if (turnoverByYear[y] < reqs.minimum_annual_turnover) {\n          allYearsPass = false;\n          failingYears.push(`${y}: ₹${turnoverByYear[y].toLocaleString('en-IN')}`);\n        }\n      });\n      \n      checks.push({\n        rule: \"MINIMUM_ANNUAL_TURNOVER\",\n        required: reqs.minimum_annual_turnover,\n        actual: evalYears.map(y => ({ year: y, turnover: turnoverByYear[y] })),\n        result: allYearsPass ? \"PASS\" : \"FAIL\"\n      });\n      \n      if (!allYearsPass) {\n        issues.push(`Annual turnover failed minimum threshold (₹${reqs.minimum_annual_turnover.toLocaleString('en-IN')}) in year(s): ${failingYears.join(', ')}`);\n      }\n    }\n  } else {\n    // Check if turnover was required but completely missing\n    if (reqs.average_turnover !== undefined || reqs.minimum_annual_turnover !== undefined) {\n      checks.push({\n        rule: \"TURNOVER_EVIDENCE\",\n        required: reqs.average_turnover || reqs.minimum_annual_turnover,\n        actual: null,\n        result: \"MISSING\"\n      });\n      issues.push(\"Required turnover evidence is missing\");\n    }\n  }\n  \n  // 2. Net Worth Evaluation\n  if (reqs.minimum_net_worth !== undefined && reqs.minimum_net_worth !== null) {\n    if (evidence.net_worth !== undefined && evidence.net_worth !== null) {\n      const passed = evidence.net_worth >= reqs.minimum_net_worth;\n      checks.push({\n        rule: \"MINIMUM_NET_WORTH\",\n        required: reqs.minimum_net_worth,\n        actual: evidence.net_worth,\n        result: passed ? \"PASS\" : \"FAIL\"\n      });\n      if (!passed) {\n        issues.push(`Net worth ₹${evidence.net_worth.toLocaleString('en-IN')} is below required minimum ₹${reqs.minimum_net_worth.toLocaleString('en-IN')}`);\n      }\n    } else {\n      checks.push({\n        rule: \"MINIMUM_NET_WORTH\",\n        required: reqs.minimum_net_worth,\n        actual: null,\n        result: \"MISSING\"\n      });\n      issues.push(\"Required net worth evidence is missing\");\n    }\n  }\n  \n  // 3. Working Capital Evaluation\n  if (reqs.minimum_working_capital !== undefined && reqs.minimum_working_capital !== null) {\n    if (evidence.working_capital !== undefined && evidence.working_capital !== null) {\n      const passed = evidence.working_capital >= reqs.minimum_working_capital;\n      checks.push({\n        rule: \"MINIMUM_WORKING_CAPITAL\",\n        required: reqs.minimum_working_capital,\n        actual: evidence.working_capital,\n        result: passed ? \"PASS\" : \"FAIL\"\n      });\n      if (!passed) {\n        issues.push(`Working capital ₹${evidence.working_capital.toLocaleString('en-IN')} is below required minimum ₹${reqs.minimum_working_capital.toLocaleString('en-IN')}`);\n      }\n    } else {\n      checks.push({\n        rule: \"MINIMUM_WORKING_CAPITAL\",\n        required: reqs.minimum_working_capital,\n        actual: null,\n        result: \"MISSING\"\n      });\n      issues.push(\"Required working capital evidence is missing\");\n    }\n  }\n  \n  return {\n    json: {\n      ...data,\n      calculated_metrics: {\n        turnover_by_year: turnoverByYear,\n        average_turnover: avgTurnover,\n        turnover_sum: turnoverSum,\n        years_evaluated: yearCount,\n        net_worth: evidence.net_worth !== undefined ? evidence.net_worth : null,\n        working_capital: evidence.working_capital !== undefined ? evidence.working_capital : null\n      },\n      compliance_checks: checks,\n      evaluation_issues: issues\n    }\n  };\n});"
+        },
+        "id": "fin-calculations",
+        "name": "⚙️ Deterministic Financial Calculations",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 340],
+        "notes": "DETERMINISTIC EVALUATION\nCalculates multi-year averages, annual thresholds, net worth, and working capital"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  let status = \"VERIFIED\";\n  let confidence = 0.99;\n  let riskLevel = \"LOW\";\n  const issues = [];\n  \n  // 1. Check for schema/data corruption errors\n  if (!data.valid_schema) {\n    status = \"ERROR\";\n    confidence = 0.0;\n    riskLevel = \"HIGH\";\n    issues.push(...(data.validation_errors || [\"Invalid financial data encountered\"]));\n  } else {\n    const checks = data.compliance_checks || [];\n    const evalIssues = data.evaluation_issues || [];\n    \n    const hasFails = checks.some(c => c.result === \"FAIL\");\n    const hasMissing = checks.some(c => c.result === \"MISSING\");\n    \n    issues.push(...evalIssues);\n    \n    if (hasFails) {\n      status = \"NOT_VERIFIED\";\n      confidence = 0.99;\n      riskLevel = \"HIGH\";\n    } else if (hasMissing) {\n      status = \"NOT_VERIFIED\";\n      confidence = 0.95;\n      riskLevel = \"HIGH\";\n    } else if (checks.length === 0) {\n      // No financial requirements specified in tender\n      status = \"VERIFIED\";\n      confidence = 0.95;\n      riskLevel = \"LOW\";\n    } else {\n      status = \"VERIFIED\";\n      confidence = 0.99;\n      riskLevel = \"LOW\";\n    }\n  }\n  \n  const metrics = data.calculated_metrics || {};\n  const reqs = data.financial_requirements || {};\n  \n  return {\n    json: {\n      agent: \"FINANCIAL_AGENT\",\n      status,\n      confidence,\n      evidence: {\n        turnover_by_year: metrics.turnover_by_year || null,\n        average_turnover: metrics.average_turnover || null,\n        required_average_turnover: reqs.average_turnover || null,\n        required_minimum_annual_turnover: reqs.minimum_annual_turnover || null,\n        net_worth: metrics.net_worth !== undefined ? metrics.net_worth : null,\n        required_net_worth: reqs.minimum_net_worth || null,\n        working_capital: metrics.working_capital !== undefined ? metrics.working_capital : null,\n        required_working_capital: reqs.minimum_working_capital || null,\n        years_evaluated: metrics.years_evaluated || 0,\n        checks: data.compliance_checks || [],\n        ca_certified: data.registry_record ? data.registry_record.ca_certified : null,\n        udin: data.registry_record ? data.registry_record.udin : null,\n        registry_source: data.registry_record ? data.registry_record.source : \"BIDDER_SUBMISSION\"\n      },\n      issues,\n      risk_level: riskLevel,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "fin-synthesis",
+        "name": "⚖️ Financial Risk & Status Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 340],
+        "notes": "SYNTHESIS ENGINE\nEnforces standard result schema, confidence grading, and risk attribution"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "fin-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1620, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "fin-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [1880, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"FINANCIAL_AGENT\",\n    status: \"ERROR\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Financial verification agent encountered an unexpected execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Financial verification agent failed unexpectedly\"],\n    risk_level: \"HIGH\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "fin-error-fallback",
+        "name": "🛑 Financial Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 560],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: 💰 FINANCIAL VERIFICATION AGENT\nDeterministic evaluation of financial compliance criteria.\nVerifies turnover thresholds, multi-year averages, net worth, and working capital.",
+          "height": 160,
+          "width": 600,
+          "color": 7
+        },
+        "id": "fin-card-1",
+        "name": "Note - Card 1 Financial Agent",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [240, 60]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: ⚙️ DETERMINISTIC ALGORITHMS\nStrict mathematical calculations:\n• Multi-year average turnover calculation\n• Individual annual turnover threshold checks\n• Net worth and working capital threshold checks\n• Zero LLM dependency for arithmetic correctness",
+          "height": 160,
+          "width": 600,
+          "color": 5
+        },
+        "id": "fin-card-2",
+        "name": "Note - Card 2 Deterministic Rules",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1060, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Financial Input & Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Financial Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Financial Input & Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Financial Input & Validation": {
+        "main": [
+          [
+            {
+              "node": "🏛 Mock Financial Registry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏛 Mock Financial Registry": {
+        "main": [
+          [
+            {
+              "node": "⚙️ Deterministic Financial Calculations",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚙️ Deterministic Financial Calculations": {
+        "main": [
+          [
+            {
+              "node": "⚖️ Financial Risk & Status Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚖️ Financial Risk & Status Synthesis": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

@@ -1,0 +1,333 @@
+[
+  {
+    "id": "SihPanAgentProto01",
+    "name": "🔹 SIH — PAN Verification Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "pan-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/pan-verification",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "pan-trigger-webhook",
+        "name": "📥 PAN Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-pan-verification"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  let pan = (data.pan || \"\").toString().trim().toUpperCase();\n  \n  // Extract from GSTIN if pan not directly provided (chars 3 to 12 of GSTIN)\n  if (!pan && data.gstin && data.gstin.length === 15) {\n    pan = data.gstin.substring(2, 12);\n  }\n  if (!pan) {\n    pan = \"AABCU9603R\";\n  }\n\n  const bidder_name = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  return {\n    json: {\n      request_id: data.request_id || \"REQ-PAN-DEMO\",\n      bidder_name,\n      pan,\n      agent: \"PAN_AGENT\",\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "pan-input-validation",
+        "name": "🔍 Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340]
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ `Analyze PAN compliance for bidder: '${$json.bidder_name}' with PAN: '${$json.pan}'` }}",
+          "options": {
+            "systemMessage": "You are a PAN verification specialist for a procurement bid compliance system.\n\nAnalyze the supplied PAN and bidder information.\n\nCheck:\n- PAN format\n- PAN structural validity\n- registered name from available evidence\n- consistency with bidder name\n- suspicious/inconsistent information\n\nReal government verification is NOT available in this prototype.\n\nUse mock registry information where required.\n\nNever claim that a real government portal was accessed.\n\nReturn only the structured verification result requested by the output schema."
+          }
+        },
+        "id": "pan-ai-agent",
+        "name": "🤖 PAN AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [780, 340],
+        "notes": "SPECIALIZED PAN AI AGENT\n🔄 RETRY — MAX 3 ATTEMPTS (2000ms)\nFalls back smoothly if Groq is unconfigured",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "model": "llama-3.3-70b-versatile",
+          "options": {}
+        },
+        "id": "pan-groq-model",
+        "name": "⚡ Groq Chat Model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [660, 560],
+        "credentials": {
+          "groqApi": {
+            "id": "groq_api_credential",
+            "name": "Groq Account (Manual Config Required)"
+          }
+        },
+        "notes": "⚠️ REQUIRES GROQ API KEY IN N8N CREDENTIALS"
+      },
+      {
+        "parameters": {
+          "schemaType": "manualJson",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"agent\": { \"type\": \"string\" },\n    \"status\": { \"type\": \"string\", \"enum\": [\"VERIFIED\", \"NOT_VERIFIED\", \"REVIEW\"] },\n    \"confidence\": { \"type\": \"number\" },\n    \"evidence\": { \"type\": \"object\" },\n    \"issues\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"risk_level\": { \"type\": \"string\", \"enum\": [\"LOW\", \"MEDIUM\", \"HIGH\"] }\n  },\n  \"required\": [\"agent\", \"status\", \"confidence\", \"evidence\", \"issues\", \"risk_level\"]\n}"
+        },
+        "id": "pan-output-parser",
+        "name": "📋 Structured Output Parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "position": [900, 560]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst MOCK_PAN_REGISTRY = {\n  \"AABCU9603R\": {\n    registered_name: \"ABC Technologies Pvt Ltd\",\n    pan_type: \"Company\",\n    status: \"VALID_AND_OPERATIVE\",\n    aadhaar_seeding_status: \"NOT_APPLICABLE_COMPANY\",\n    category: \"C - Company\",\n    issuance_date: \"2015-04-12\"\n  },\n  \"AAACB1234P\": {\n    registered_name: \"Mismatch Enterprises Ltd\",\n    pan_type: \"Individual\",\n    status: \"VALID_AND_OPERATIVE\",\n    aadhaar_seeding_status: \"SEEDED\",\n    category: \"P - Person\",\n    issuance_date: \"2018-09-20\"\n  },\n  \"AABCS1234D\": {\n    registered_name: \"Cancelled Vendor Pvt Ltd\",\n    pan_type: \"Company\",\n    status: \"INOPERATIVE_DEACTIVATED\",\n    aadhaar_seeding_status: \"NOT_SEEDED_INOPERATIVE\",\n    category: \"C - Company\",\n    issuance_date: \"2016-11-05\"\n  }\n};\n\nlet rawInput = {};\ntry {\n  rawInput = $('🔍 Input Validation').first().json || {};\n} catch (e) {\n  rawInput = {};\n}\n\nreturn items.map(item => {\n  const data = item.json;\n  let pan = (data.pan || (data.evidence && data.evidence.pan) || rawInput.pan || (rawInput.raw_input && rawInput.raw_input.pan) || \"\").toString().toUpperCase().trim();\n  if (!pan && rawInput.gstin && rawInput.gstin.length === 15) {\n    pan = rawInput.gstin.substring(2, 12);\n  }\n  const bidderName = (data.bidder_name || rawInput.bidder_name || (rawInput.raw_input && rawInput.raw_input.bidder_name) || \"ABC Technologies Pvt Ltd\").toString().trim();\n  const registryEntry = MOCK_PAN_REGISTRY[pan] || null;\n\n  return {\n    json: {\n      ...data,\n      bidder_name: bidderName,\n      pan,\n      mock_record_found: !!registryEntry,\n      mock_pan_record: registryEntry\n    }\n  };\n});"
+        },
+        "id": "pan-mock-registry",
+        "name": "🏛 Mock PAN Registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1080, 340],
+        "notes": "MOCK NSDL / CBDT PAN REGISTRY\nSupports: 1. Valid Active 2. Mismatch 3. Inoperative"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;\nconst ENTITY_MAP = {\n  'C': 'Company',\n  'P': 'Individual/Person',\n  'H': 'Hindu Undivided Family (HUF)',\n  'F': 'Partnership Firm / LLP',\n  'A': 'Association of Persons (AOP)',\n  'T': 'Trust',\n  'B': 'Body of Individuals (BOI)',\n  'L': 'Local Authority',\n  'J': 'Artificial Juridical Person',\n  'G': 'Government Agency'\n};\n\nreturn items.map(item => {\n  const data = item.json;\n  const pan = data.pan || \"\";\n  const formatValid = PAN_REGEX.test(pan);\n  \n  let entityType = \"Unknown\";\n  let entityCode = null;\n  if (formatValid) {\n    entityCode = pan[3];\n    entityType = ENTITY_MAP[entityCode] || \"Other Entity\";\n  }\n\n  return {\n    json: {\n      ...data,\n      format_valid: formatValid,\n      entity_code: entityCode,\n      entity_type_desc: entityType\n    }\n  };\n});"
+        },
+        "id": "pan-format-validation",
+        "name": "⚙️ PAN Format Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1360, 340],
+        "notes": "STATUTORY PAN STRUCTURE\nValidates 5-alpha, 4-num, 1-alpha + 4th character entity type"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  const bidderName = (data.bidder_name || \"\").toUpperCase().trim();\n  const record = data.mock_pan_record;\n  const issues = [];\n  let status = \"VERIFIED\";\n  let confidence = 0.98;\n  let riskLevel = \"LOW\";\n\n  if (!data.format_valid) {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.95;\n    riskLevel = \"HIGH\";\n    issues.push(`PAN format invalid: '${data.pan}' does not comply with 10-character statutory format (AAAAA9999A)`);\n  } else if (!data.mock_record_found) {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.90;\n    riskLevel = \"HIGH\";\n    issues.push(`PAN '${data.pan}' not found in mock CBDT/NSDL registry`);\n  } else if (record.status !== \"VALID_AND_OPERATIVE\") {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.96;\n    riskLevel = \"HIGH\";\n    issues.push(`PAN status is '${record.status}' for registered taxpayer ${record.registered_name}`);\n  } else {\n    const regName = record.registered_name.toUpperCase().trim();\n    const exactMatch = bidderName === regName;\n    const partialMatch = bidderName.includes(regName) || regName.includes(bidderName);\n\n    if (!exactMatch && !partialMatch) {\n      status = \"REVIEW\";\n      confidence = 0.60;\n      riskLevel = \"MEDIUM\";\n      issues.push(`Name consistency mismatch: Bidder name '${data.bidder_name}' differs from PAN registered entity '${record.registered_name}'`);\n    } else {\n      status = \"VERIFIED\";\n      confidence = 0.98;\n      riskLevel = \"LOW\";\n    }\n  }\n\n  return {\n    json: {\n      ...data,\n      name_check_status: status,\n      name_check_confidence: confidence,\n      name_check_risk: riskLevel,\n      name_check_issues: issues\n    }\n  };\n});"
+        },
+        "id": "pan-name-check",
+        "name": "🔗 Name Consistency Check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1640, 340],
+        "notes": "NAME RECONCILIATION\nMatches bidder name against CBDT registered PAN identity"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  const record = data.mock_pan_record;\n  \n  return {\n    json: {\n      agent: \"PAN_AGENT\",\n      status: data.name_check_status,\n      confidence: data.name_check_confidence,\n      evidence: {\n        pan: data.pan,\n        registered_name: record ? record.registered_name : null,\n        pan_type: record ? record.pan_type : data.entity_type_desc,\n        status: record ? record.status : \"UNREGISTERED\",\n        category: record ? record.category : null,\n        issuance_date: record ? record.issuance_date : null,\n        aadhaar_seeding_status: record ? record.aadhaar_seeding_status : null,\n        registry_source: \"MOCK_CBDT_NSDL_PORTAL\"\n      },\n      issues: data.name_check_issues || [],\n      risk_level: data.name_check_risk,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "pan-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1920, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "pan-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2160, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"PAN_AGENT\",\n    status: \"REVIEW\",\n    confidence: 0.0,\n    evidence: {\n      error: \"PAN verification agent encountered an execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"PAN verification agent failed\"],\n    risk_level: \"MEDIUM\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "pan-error-fallback",
+        "name": "🛑 PAN Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 700],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## 🟦 SECTION 1: TRIGGER & INPUT\nAccepts PAN verification requests via:\n1. Execute Workflow (from Master Orchestrator)\n2. Direct Webhook (for independent testing)\nExtracts or derives PAN from bidder submission.",
+          "height": 180,
+          "width": 420,
+          "color": 4
+        },
+        "id": "pan-note-input",
+        "name": "Note - Input & Trigger",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [200, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟪 SECTION 2: AI AGENT ANALYSIS\nSpecialized PAN AI Agent powered by Groq Llama-3.3-70b-versatile.\nChecks structural validity, entity classification, and evidence consistency.\nConfigured with 3 retries (2000ms) and non-blocking fallback.",
+          "height": 180,
+          "width": 440,
+          "color": 6
+        },
+        "id": "pan-note-ai",
+        "name": "Note - AI Analysis",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [680, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟧 SECTION 3: MOCK REGISTRY & FORMAT CHECKS\nValidates PAN 10-char alphanumeric syntax.\nInspects 4th character entity type (C=Company, P=Individual).\nMatches registered CBDT record against legal bidder identity.",
+          "height": 180,
+          "width": 460,
+          "color": 3
+        },
+        "id": "pan-note-registry",
+        "name": "Note - Registry & Format",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1180, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟩 SECTION 4: CANONICAL STANDARDIZED RESULT\nReturns canonical schema:\n`{ agent: 'PAN_AGENT', status, confidence, evidence, issues, risk_level, timestamp }`\nCompatible with Master Orchestrator result aggregator.",
+          "height": 180,
+          "width": 440,
+          "color": 7
+        },
+        "id": "pan-note-output",
+        "name": "Note - Result & Reliability",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1700, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 PAN Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Input Validation": {
+        "main": [
+          [
+            {
+              "node": "🤖 PAN AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚡ Groq Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "🤖 PAN AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📋 Structured Output Parser": {
+        "ai_outputParser": [
+          [
+            {
+              "node": "🤖 PAN AI Agent",
+              "type": "ai_outputParser",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🤖 PAN AI Agent": {
+        "main": [
+          [
+            {
+              "node": "🏛 Mock PAN Registry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏛 Mock PAN Registry": {
+        "main": [
+          [
+            {
+              "node": "⚙️ PAN Format Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚙️ PAN Format Validation": {
+        "main": [
+          [
+            {
+              "node": "🔗 Name Consistency Check",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔗 Name Consistency Check": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🛑 PAN Error Fallback": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

@@ -1,0 +1,260 @@
+[
+  {
+    "id": "SihEntityResolutionAgentProto01",
+    "name": "🔹 SIH — Entity Resolution Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "ent-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/entity-resolution",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "ent-trigger-webhook",
+        "name": "📥 Entity Resolution Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-entity-resolution"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\n// Default mock identity evidence for prototype bidders\nconst MOCK_IDENTITIES = {\n  \"ABC Technologies Pvt Ltd\": {\n    gst: {\n      gstin: \"27AABCU9603R1ZM\",\n      legal_name: \"ABC Technologies Private Limited\"\n    },\n    pan: {\n      pan: \"AABCU9603R\",\n      holder_name: \"ABC Technologies Pvt Ltd\"\n    },\n    udyam: {\n      udyam_number: \"UDYAM-MH-01-0012345\",\n      enterprise_name: \"ABC Technologies Private Limited\"\n    },\n    financial: {\n      entity_name: \"ABC Technologies Pvt Ltd\"\n    },\n    documents: [\n      {\n        document_id: \"DOC-GST-001\",\n        document_type: \"GST_CERTIFICATE\",\n        entity_name: \"ABC Technologies Private Limited\"\n      }\n    ]\n  }\n};\n\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  \n  const requestId = data.request_id || \"REQ-ENT-DEMO\";\n  const tenderId = data.tender_id || \"TENDER-ENT-DEMO\";\n  const bidderId = data.bidder_id || \"BIDDER-ENT-DEMO\";\n  const bidderName = (data.bidder_name || \"\").toString().trim();\n  \n  if (!bidderName) {\n    errors.push(\"Missing required field 'bidder_name'\");\n  }\n  \n  let identityEvidence = data.identity_evidence;\n  let evidenceProvided = false;\n  \n  if (identityEvidence && typeof identityEvidence === 'object') {\n    evidenceProvided = true;\n  } else {\n    // Check if root-level statutory fields are supplied\n    if (data.gstin || data.pan || data.udyam) {\n      evidenceProvided = true;\n      identityEvidence = {\n        gst: data.gstin ? { gstin: data.gstin, legal_name: bidderName } : null,\n        pan: data.pan ? { pan: data.pan, holder_name: bidderName } : null,\n        udyam: data.udyam ? { udyam_number: data.udyam, enterprise_name: bidderName } : null\n      };\n    } else if (MOCK_IDENTITIES[bidderName]) {\n      identityEvidence = MOCK_IDENTITIES[bidderName];\n    } else {\n      identityEvidence = {};\n    }\n  }\n  \n  return {\n    json: {\n      request_id: requestId,\n      tender_id: tenderId,\n      bidder_id: bidderId,\n      bidder_name: bidderName,\n      identity_evidence: identityEvidence,\n      evidence_provided: evidenceProvided,\n      valid_schema: errors.length === 0,\n      validation_errors: errors,\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "ent-input-validation",
+        "name": "🔍 Entity Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340],
+        "notes": "SCHEMA INGRESS & EVIDENCE EXTRACTION\nValidates bidder identifiers and establishes identity evidence boundaries"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nfunction normalizeLegalName(raw) {\n  if (!raw || typeof raw !== 'string') return '';\n  \n  let s = raw.toUpperCase().trim();\n  // Remove punctuation (dots, commas, hyphens, quotes, brackets)\n  s = s.replace(/[.,'\"\\/#!$%^&*;:{}=\\-_`~()]/g, ' ');\n  // Collapse spaces\n  s = s.replace(/\\s+/g, ' ').trim();\n  \n  // Normalize common approved legal suffixes\n  const suffixes = [\n    /\\bPRIVATE LIMITED\\b/g,\n    /\\bPVT LTD\\b/g,\n    /\\bPVT LIMITED\\b/g,\n    /\\bLIMITED LIABILITY PARTNERSHIP\\b/g,\n    /\\bLIMITED\\b/g,\n    /\\bLTD\\b/g,\n    /\\bLLP\\b/g,\n    /\\bINCORPORATED\\b/g,\n    /\\bINC\\b/g,\n    /\\bCORPORATION\\b/g,\n    /\\bCORP\\b/g,\n    /\\bCOMPANY\\b/g,\n    /\\bCO\\b/g\n  ];\n  \n  for (const suf of suffixes) {\n    s = s.replace(suf, ' ');\n  }\n  \n  return s.replace(/\\s+/g, ' ').trim();\n}\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const rawBidder = data.bidder_name || '';\n  const normBidder = normalizeLegalName(rawBidder);\n  \n  const ev = data.identity_evidence || {};\n  const normEvidence = {};\n  \n  if (ev.gst) {\n    normEvidence.gst = {\n      ...ev.gst,\n      normalized_name: normalizeLegalName(ev.gst.legal_name || ev.gst.trade_name || '')\n    };\n  }\n  if (ev.pan) {\n    normEvidence.pan = {\n      ...ev.pan,\n      normalized_name: normalizeLegalName(ev.pan.holder_name || ev.pan.entity_name || '')\n    };\n  }\n  if (ev.udyam) {\n    normEvidence.udyam = {\n      ...ev.udyam,\n      normalized_name: normalizeLegalName(ev.udyam.enterprise_name || '')\n    };\n  }\n  if (ev.financial) {\n    normEvidence.financial = {\n      ...ev.financial,\n      normalized_name: normalizeLegalName(ev.financial.entity_name || '')\n    };\n  }\n  if (Array.isArray(ev.documents)) {\n    normEvidence.documents = ev.documents.map(d => ({\n      ...d,\n      normalized_name: normalizeLegalName(d.entity_name || '')\n    }));\n  }\n  \n  return {\n    json: {\n      ...data,\n      canonical_name: normBidder,\n      normalized_evidence: normEvidence\n    }\n  };\n});"
+        },
+        "id": "ent-name-normalization",
+        "name": "🔤 Entity Name Normalization",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 340],
+        "notes": "DETERMINISTIC SUFFIX NORMALIZATION\nNormalizes Private Limited, Pvt Ltd, Ltd, LLP without fuzzy distortion"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const canonical = data.canonical_name;\n  const ev = data.normalized_evidence || {};\n  \n  const nameMatches = {};\n  const sourcesEvaluated = [];\n  const nameConflicts = [];\n  \n  // 1. GST legal name cross-check\n  if (ev.gst && ev.gst.normalized_name) {\n    sourcesEvaluated.push('GST');\n    const match = ev.gst.normalized_name === canonical;\n    nameMatches.gst = match;\n    if (!match) {\n      nameConflicts.push(`GST legal name ('${ev.gst.legal_name}') does not match bidder name ('${data.bidder_name}')`);\n    }\n  }\n  \n  // 2. PAN holder name cross-check\n  if (ev.pan && ev.pan.normalized_name) {\n    sourcesEvaluated.push('PAN');\n    const match = ev.pan.normalized_name === canonical;\n    nameMatches.pan = match;\n    if (!match) {\n      nameConflicts.push(`PAN holder name ('${ev.pan.holder_name}') does not match bidder name ('${data.bidder_name}')`);\n    }\n  }\n  \n  // 3. Udyam enterprise name cross-check\n  if (ev.udyam && ev.udyam.normalized_name) {\n    sourcesEvaluated.push('UDYAM');\n    const match = ev.udyam.normalized_name === canonical;\n    nameMatches.udyam = match;\n    if (!match) {\n      nameConflicts.push(`Udyam enterprise name ('${ev.udyam.enterprise_name}') does not match bidder name ('${data.bidder_name}')`);\n    }\n  }\n  \n  // 4. Financial entity name cross-check\n  if (ev.financial && ev.financial.normalized_name) {\n    sourcesEvaluated.push('FINANCIAL');\n    const match = ev.financial.normalized_name === canonical;\n    nameMatches.financial = match;\n    if (!match) {\n      nameConflicts.push(`Financial statements entity name ('${ev.financial.entity_name}') does not match bidder name ('${data.bidder_name}')`);\n    }\n  }\n  \n  // 5. Document entity names cross-check\n  if (Array.isArray(ev.documents) && ev.documents.length > 0) {\n    sourcesEvaluated.push('DOCUMENTS');\n    let allDocsMatch = true;\n    ev.documents.forEach(d => {\n      if (d.normalized_name && d.normalized_name !== canonical) {\n        allDocsMatch = false;\n        nameConflicts.push(`Document '${d.document_id}' entity name ('${d.entity_name}') does not match bidder name ('${data.bidder_name}')`);\n      }\n    });\n    nameMatches.documents = allDocsMatch;\n  }\n  \n  return {\n    json: {\n      ...data,\n      identity_sources_evaluated: sourcesEvaluated,\n      name_matches: nameMatches,\n      name_conflicts: nameConflicts\n    }\n  };\n});"
+        },
+        "id": "ent-cross-check",
+        "name": "⚖️ Identity Cross-Check Engine",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 340],
+        "notes": "NAME RECONCILIATION\nCross-checks GST, PAN, Udyam, Financial, and Document names against Bidder"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nconst PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;\nconst GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;\nconst UDYAM_REGEX = /^UDYAM-[A-Z0-9-]+$/;\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const ev = data.identity_evidence || {};\n  const identifierChecks = {\n    gst_pan_consistent: true,\n    pan_format_valid: true,\n    gstin_format_valid: true,\n    udyam_format_valid: true\n  };\n  const identifierConflicts = [];\n  \n  const gstin = ev.gst?.gstin ? String(ev.gst.gstin).trim().toUpperCase() : null;\n  const pan = ev.pan?.pan ? String(ev.pan.pan).trim().toUpperCase() : null;\n  const udyam = ev.udyam?.udyam_number ? String(ev.udyam.udyam_number).trim().toUpperCase() : null;\n  \n  // 1. PAN format check\n  if (pan) {\n    const valid = PAN_REGEX.test(pan);\n    identifierChecks.pan_format_valid = valid;\n    if (!valid) {\n      identifierConflicts.push(`Invalid PAN format: '${pan}'`);\n    }\n  }\n  \n  // 2. GSTIN format check\n  if (gstin) {\n    const valid = GSTIN_REGEX.test(gstin);\n    identifierChecks.gstin_format_valid = valid;\n    if (!valid) {\n      identifierConflicts.push(`Invalid GSTIN format: '${gstin}'`);\n    }\n  }\n  \n  // 3. Udyam format check\n  if (udyam) {\n    const valid = UDYAM_REGEX.test(udyam);\n    identifierChecks.udyam_format_valid = valid;\n    if (!valid) {\n      identifierConflicts.push(`Invalid Udyam registration format: '${udyam}'`);\n    }\n  }\n  \n  // 4. GSTIN ↔ PAN embedded relationship check\n  if (gstin && pan) {\n    // In Indian GSTIN, chars 2..12 (0-indexed) represent the 10-digit PAN\n    if (gstin.length >= 12) {\n      const embeddedPan = gstin.substring(2, 12);\n      if (embeddedPan !== pan) {\n        identifierChecks.gst_pan_consistent = false;\n        identifierConflicts.push(`GSTIN PAN mismatch: GSTIN '${gstin}' contains embedded PAN '${embeddedPan}' which conflicts with submitted PAN '${pan}'`);\n      } else {\n        identifierChecks.gst_pan_consistent = true;\n      }\n    }\n  }\n  \n  return {\n    json: {\n      ...data,\n      identifier_checks: identifierChecks,\n      identifier_conflicts: identifierConflicts\n    }\n  };\n});"
+        },
+        "id": "ent-identifier-check",
+        "name": "🆔 Identifier Consistency Engine",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 340],
+        "notes": "STRUCTURAL CONSISTENCY\nVerifies GSTIN ↔ PAN embedded extraction and format validity"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const allConflicts = [];\n  if (data.name_conflicts) allConflicts.push(...data.name_conflicts);\n  if (data.identifier_conflicts) allConflicts.push(...data.identifier_conflicts);\n  \n  // Detect missing evidence\n  const sources = data.identity_sources_evaluated || [];\n  const hasIdentifiers = data.identity_evidence?.gst?.gstin || data.identity_evidence?.pan?.pan;\n  \n  if (sources.length === 0 && !hasIdentifiers) {\n    allConflicts.push(\"Insufficient identity evidence provided for resolution\");\n  }\n  \n  return {\n    json: {\n      ...data,\n      conflicts_detected: allConflicts\n    }\n  };\n});"
+        },
+        "id": "ent-conflict-detection",
+        "name": "⚠️ Duplicate & Conflict Detection",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1620, 340],
+        "notes": "CONFLICT AGGREGATION\nConsolidates name and identifier discrepancies"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  let status = \"VERIFIED\";\n  let confidence = 0.98;\n  let riskLevel = \"LOW\";\n  const allIssues = [];\n  \n  if (!data.valid_schema) {\n    status = \"ERROR\";\n    confidence = 0.0;\n    riskLevel = \"HIGH\";\n    allIssues.push(...(data.validation_errors || [\"Invalid entity input structure\"]));\n  } else {\n    const conflicts = data.conflicts_detected || [];\n    allIssues.push(...conflicts);\n    \n    const sources = data.identity_sources_evaluated || [];\n    const identChecks = data.identifier_checks || {};\n    \n    if (conflicts.length > 0) {\n      status = \"NOT_VERIFIED\";\n      riskLevel = \"HIGH\";\n      // Format errors decrease confidence\n      if (!identChecks.pan_format_valid || !identChecks.gstin_format_valid) {\n        confidence = 0.75;\n      } else {\n        confidence = 0.95;\n      }\n    } else if (sources.length === 0) {\n      status = \"NOT_VERIFIED\";\n      confidence = 0.85;\n      riskLevel = \"HIGH\";\n    } else {\n      status = \"VERIFIED\";\n      confidence = 0.99;\n      riskLevel = \"LOW\";\n    }\n  }\n  \n  return {\n    json: {\n      agent: \"ENTITY_RESOLUTION_AGENT\",\n      status,\n      confidence,\n      evidence: {\n        bidder_id: data.bidder_id || \"BIDDER-UNKNOWN\",\n        canonical_name: data.canonical_name || data.bidder_name || \"\",\n        identity_sources_evaluated: data.identity_sources_evaluated || [],\n        name_matches: data.name_matches || {},\n        identifier_checks: data.identifier_checks || {\n          gst_pan_consistent: true,\n          pan_format_valid: true,\n          gstin_format_valid: true,\n          udyam_format_valid: true\n        },\n        conflicts_detected: data.conflicts_detected || [],\n        registry_source: \"BIDDER_SUBMISSION\"\n      },\n      issues: allIssues,\n      risk_level: riskLevel,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "ent-synthesis",
+        "name": "📊 Entity Resolution Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1900, 340],
+        "notes": "SYNTHESIS & CONFIDENCE SCORING\nDerives deterministic entity resolution status and confidence"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "ent-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2180, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "ent-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2440, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"ENTITY_RESOLUTION_AGENT\",\n    status: \"ERROR\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Entity resolution agent encountered an unexpected execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Entity resolution agent failed unexpectedly\"],\n    risk_level: \"HIGH\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "ent-error-fallback",
+        "name": "🛑 Entity Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 560],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: 🔗 ENTITY RESOLUTION AGENT\nDeterministic cross-verification of bidder identities.\nReconciles legal entity names across GST, PAN, Udyam, Financial and Bid Document records without fuzzy distortion.",
+          "height": 160,
+          "width": 600,
+          "color": 6
+        },
+        "id": "ent-card-1",
+        "name": "Note - Card 1 Entity Resolution",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [240, 60]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: ⚙️ DETERMINISTIC IDENTITY RULES\nDeterministic identity consistency rules:\n• Legal suffix equivalence (Pvt Ltd / Private Limited)\n• GSTIN ↔ PAN embedded character reconciliation\n• Format validation for PAN, GSTIN, and Udyam\n• Cross-source name discrepancy and conflict detection",
+          "height": 160,
+          "width": 650,
+          "color": 4
+        },
+        "id": "ent-card-2",
+        "name": "Note - Card 2 Identity Rules",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1060, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Entity Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Entity Resolution Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Entity Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Entity Input Validation": {
+        "main": [
+          [
+            {
+              "node": "🔤 Entity Name Normalization",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔤 Entity Name Normalization": {
+        "main": [
+          [
+            {
+              "node": "⚖️ Identity Cross-Check Engine",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚖️ Identity Cross-Check Engine": {
+        "main": [
+          [
+            {
+              "node": "🆔 Identifier Consistency Engine",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🆔 Identifier Consistency Engine": {
+        "main": [
+          [
+            {
+              "node": "⚠️ Duplicate & Conflict Detection",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚠️ Duplicate & Conflict Detection": {
+        "main": [
+          [
+            {
+              "node": "📊 Entity Resolution Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📊 Entity Resolution Synthesis": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

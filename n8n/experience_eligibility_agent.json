@@ -1,0 +1,194 @@
+[
+  {
+    "id": "SihExperienceAgentProto01",
+    "name": "🔹 SIH — Experience & Eligibility Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "exp-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/experience-verification",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "exp-trigger-webhook",
+        "name": "📥 Experience Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-experience-verification"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nfunction isNumeric(val) {\n  if (typeof val === 'number') return !isNaN(val) && isFinite(val);\n  if (typeof val !== 'string') return false;\n  const trimmed = val.trim();\n  if (trimmed === '') return false;\n  const num = Number(trimmed);\n  return !isNaN(num) && isFinite(num);\n}\n\nfunction parseNumeric(val) {\n  if (typeof val === 'number') return val;\n  return Number(String(val).trim());\n}\n\n// Default mock experience records for registered prototype bidders\nconst MOCK_BIDDER_PROJECTS = {\n  \"ABC Technologies Pvt Ltd\": [\n    {\n      project_id: \"PROJ-ABC-001\",\n      project_name: \"State Smart City Core Integration\",\n      client_name: \"Urban Development Department\",\n      project_value: 1500000,\n      completion_date: \"2024-06-10\",\n      similarity: true,\n      completion_certificate: true,\n      certificate_document_id: \"DOC-EXP-001\"\n    },\n    {\n      project_id: \"PROJ-ABC-002\",\n      project_name: \"Enterprise Portal & Security Layer\",\n      client_name: \"Power Distribution Corporation\",\n      project_value: 1200000,\n      completion_date: \"2023-08-15\",\n      similarity: true,\n      completion_certificate: true,\n      certificate_document_id: \"DOC-EXP-002\"\n    },\n    {\n      project_id: \"PROJ-ABC-003\",\n      project_name: \"Cloud Migration & Managed DevOps\",\n      client_name: \"Municipal Services Department\",\n      project_value: 1800000,\n      completion_date: \"2022-11-20\",\n      similarity: true,\n      completion_certificate: true,\n      certificate_document_id: \"DOC-EXP-003\"\n    }\n  ]\n};\n\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  \n  const requestId = data.request_id || \"REQ-EXP-DEMO\";\n  const tenderId = data.tender_id || \"TENDER-EXP-DEMO\";\n  const bidderId = data.bidder_id || \"BIDDER-EXP-DEMO\";\n  const bidderName = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  \n  // 1. Requirements validation\n  const rawReqs = data.experience_requirements || {};\n  const parsedReqs = {\n    minimum_similar_works: 3,\n    minimum_project_value: 1000000,\n    experience_period_years: 5,\n    require_completion_certificate: true,\n    similarity_required: true\n  };\n  \n  if (rawReqs.minimum_similar_works !== undefined && rawReqs.minimum_similar_works !== null) {\n    if (!isNumeric(rawReqs.minimum_similar_works)) {\n      errors.push(`Invalid requirement: minimum_similar_works must be a number, received '${rawReqs.minimum_similar_works}'`);\n    } else {\n      const n = parseNumeric(rawReqs.minimum_similar_works);\n      if (n < 0) errors.push(`Invalid requirement: minimum_similar_works cannot be negative (${n})`);\n      else parsedReqs.minimum_similar_works = n;\n    }\n  }\n  \n  if (rawReqs.minimum_project_value !== undefined && rawReqs.minimum_project_value !== null) {\n    if (!isNumeric(rawReqs.minimum_project_value)) {\n      errors.push(`Invalid requirement: minimum_project_value must be a number, received '${rawReqs.minimum_project_value}'`);\n    } else {\n      const n = parseNumeric(rawReqs.minimum_project_value);\n      if (n < 0) errors.push(`Invalid requirement: minimum_project_value cannot be negative (${n})`);\n      else parsedReqs.minimum_project_value = n;\n    }\n  }\n  \n  if (rawReqs.experience_period_years !== undefined && rawReqs.experience_period_years !== null) {\n    if (!isNumeric(rawReqs.experience_period_years)) {\n      errors.push(`Invalid requirement: experience_period_years must be a number, received '${rawReqs.experience_period_years}'`);\n    } else {\n      const n = parseNumeric(rawReqs.experience_period_years);\n      if (n <= 0) errors.push(`Invalid requirement: experience_period_years must be positive (${n})`);\n      else parsedReqs.experience_period_years = n;\n    }\n  }\n  \n  if (rawReqs.require_completion_certificate !== undefined) {\n    parsedReqs.require_completion_certificate = Boolean(rawReqs.require_completion_certificate);\n  }\n  if (rawReqs.similarity_required !== undefined) {\n    parsedReqs.similarity_required = Boolean(rawReqs.similarity_required);\n  }\n  \n  // 2. Evidence extraction\n  const rawEvidence = data.experience_evidence || null;\n  let projects = null;\n  let rawProvided = false;\n  \n  if (rawEvidence && typeof rawEvidence === 'object') {\n    rawProvided = true;\n    if (rawEvidence.projects !== undefined && rawEvidence.projects !== null) {\n      if (!Array.isArray(rawEvidence.projects)) {\n        errors.push(\"Invalid experience_evidence: 'projects' must be an array\");\n      } else {\n        projects = rawEvidence.projects;\n      }\n    } else {\n      projects = [];\n    }\n  } else if (data.projects && Array.isArray(data.projects)) {\n    rawProvided = true;\n    projects = data.projects;\n  }\n  \n  // Fallback to mock projects if none provided\n  if (!rawProvided || projects === null) {\n    projects = MOCK_BIDDER_PROJECTS[bidderName] || [];\n  }\n  \n  // 3. Project item validation\n  const validatedProjects = [];\n  if (Array.isArray(projects)) {\n    projects.forEach((p, idx) => {\n      const pId = p.project_id || `PROJ-${idx + 1}`;\n      \n      // Value validation\n      if (p.project_value !== undefined && p.project_value !== null) {\n        if (!isNumeric(p.project_value)) {\n          errors.push(`Invalid project data: project '${pId}' value contains non-numeric value '${p.project_value}'`);\n        } else {\n          const numVal = parseNumeric(p.project_value);\n          if (numVal < 0) {\n            errors.push(`Invalid project data: project '${pId}' value cannot be negative (${numVal})`);\n          }\n        }\n      } else {\n        errors.push(`Invalid project data: project '${pId}' missing required 'project_value'`);\n      }\n      \n      // Date validation\n      if (p.completion_date) {\n        const parsedDate = new Date(p.completion_date);\n        if (isNaN(parsedDate.getTime())) {\n          errors.push(`Invalid project data: project '${pId}' contains invalid completion_date '${p.completion_date}'`);\n        }\n      } else {\n        errors.push(`Invalid project data: project '${pId}' missing required 'completion_date'`);\n      }\n      \n      validatedProjects.push({\n        ...p,\n        project_id: pId,\n        project_value: isNumeric(p.project_value) ? parseNumeric(p.project_value) : p.project_value\n      });\n    });\n  }\n  \n  // Evaluation reference date (supports request-level metadata or execution date)\n  const evalDateStr = data.metadata?.evaluation_date || data.evaluation_date || new Date().toISOString();\n  const evalDate = new Date(evalDateStr);\n  const validEvalDate = !isNaN(evalDate.getTime()) ? evalDate : new Date();\n  \n  return {\n    json: {\n      request_id: requestId,\n      tender_id: tenderId,\n      bidder_id: bidderId,\n      bidder_name: bidderName,\n      experience_requirements: parsedReqs,\n      projects: validatedProjects,\n      evidence_provided: rawProvided,\n      evaluation_date: validEvalDate.toISOString(),\n      valid_schema: errors.length === 0,\n      validation_errors: errors,\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "exp-input-validation",
+        "name": "🔍 Experience Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340],
+        "notes": "STRICT SCHEMA & ARITHMETIC VALIDATION\nRejects non-numeric values, corrupt dates, and invalid negative thresholds"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) {\n    return { json: { ...data, evaluation_result: null } };\n  }\n  \n  const reqs = data.experience_requirements;\n  const projects = data.projects || [];\n  const evalDate = new Date(data.evaluation_date);\n  \n  // Calculate cutoff timestamp: evaluation_date minus experience_period_years\n  const periodYears = reqs.experience_period_years || 5;\n  const cutoffDate = new Date(evalDate.getTime());\n  cutoffDate.setFullYear(cutoffDate.getFullYear() - periodYears);\n  \n  const checks = [];\n  const issues = [];\n  const qualifyingProjects = [];\n  const rejectedProjects = [];\n  \n  const seenProjectIds = new Set();\n  let certificatesCount = 0;\n  let similarityCount = 0;\n  \n  // Evaluate each submitted project against tender eligibility criteria\n  projects.forEach(p => {\n    const pId = p.project_id;\n    const rejections = [];\n    \n    // 1. Duplicate detection\n    if (seenProjectIds.has(pId)) {\n      rejections.push(\"Duplicate project ID detected\");\n    } else {\n      seenProjectIds.add(pId);\n    }\n    \n    // 2. Similarity check\n    const isSimilar = p.similarity === true || p.is_similar === true;\n    if (isSimilar) similarityCount++;\n    if (reqs.similarity_required && !isSimilar) {\n      rejections.push(\"Project does not meet technical similarity criteria\");\n    }\n    \n    // 3. Experience period check\n    const compDate = new Date(p.completion_date);\n    const inPeriod = !isNaN(compDate.getTime()) && compDate >= cutoffDate && compDate <= evalDate;\n    if (!inPeriod) {\n      rejections.push(`Completion date (${p.completion_date}) is outside the required ${periodYears}-year period (cutoff: ${cutoffDate.toISOString().split('T')[0]})`);\n    }\n    \n    // 4. Project value threshold check\n    const pVal = typeof p.project_value === 'number' ? p.project_value : 0;\n    const valuePass = pVal >= reqs.minimum_project_value;\n    if (!valuePass) {\n      rejections.push(`Project value ₹${pVal.toLocaleString('en-IN')} is below required minimum ₹${reqs.minimum_project_value.toLocaleString('en-IN')}`);\n    }\n    \n    // 5. Completion certificate check\n    const hasCert = p.completion_certificate === true || p.has_certificate === true;\n    if (hasCert) certificatesCount++;\n    if (reqs.require_completion_certificate && !hasCert) {\n      rejections.push(\"Mandatory completion certificate is missing\");\n    }\n    \n    if (rejections.length === 0) {\n      qualifyingProjects.push(p);\n      checks.push({\n        rule: \"PROJECT_ELIGIBILITY\",\n        project_id: pId,\n        project_value: pVal,\n        completion_date: p.completion_date,\n        result: \"PASS\"\n      });\n    } else {\n      rejectedProjects.push({\n        project_id: pId,\n        reasons: rejections\n      });\n      issues.push(`Project ${pId}: ${rejections.join('; ')}`);\n      checks.push({\n        rule: \"PROJECT_ELIGIBILITY\",\n        project_id: pId,\n        project_value: pVal,\n        completion_date: p.completion_date,\n        rejection_reasons: rejections,\n        result: \"FAIL\"\n      });\n    }\n  });\n  \n  // Rule: MINIMUM_SIMILAR_WORKS count\n  const countPass = qualifyingProjects.length >= reqs.minimum_similar_works;\n  checks.push({\n    rule: \"MINIMUM_SIMILAR_WORKS\",\n    required: reqs.minimum_similar_works,\n    actual: qualifyingProjects.length,\n    result: countPass ? \"PASS\" : \"FAIL\"\n  });\n  \n  if (!countPass) {\n    issues.push(`Qualifying projects count (${qualifyingProjects.length}) is below required minimum (${reqs.minimum_similar_works})`);\n  }\n  \n  if (projects.length === 0) {\n    issues.push(\"Required project experience evidence is missing\");\n  }\n  \n  return {\n    json: {\n      ...data,\n      evaluation_result: {\n        projects_evaluated: projects.length,\n        qualifying_projects: qualifyingProjects.length,\n        minimum_required_projects: reqs.minimum_similar_works,\n        minimum_project_value: reqs.minimum_project_value,\n        experience_period_years: periodYears,\n        qualifying_project_list: qualifyingProjects.map(p => p.project_id),\n        rejected_projects: rejectedProjects,\n        certificates_verified: certificatesCount,\n        similarity_verified: similarityCount,\n        compliance_checks: checks,\n        evaluation_issues: issues,\n        count_passed: countPass\n      }\n    }\n  };\n});"
+        },
+        "id": "exp-rule-eval",
+        "name": "⚙️ Experience Rule Evaluation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 340],
+        "notes": "DETERMINISTIC EXPERIENCE ENGINE\nEvaluates similar works count, value thresholds, completion dates, and certificate presence"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  let status = \"VERIFIED\";\n  let confidence = 0.98;\n  let riskLevel = \"LOW\";\n  const allIssues = [];\n  \n  if (!data.valid_schema) {\n    status = \"ERROR\";\n    confidence = 0.0;\n    riskLevel = \"HIGH\";\n    allIssues.push(...(data.validation_errors || [\"Invalid experience input data encountered\"]));\n  } else {\n    const evalRes = data.evaluation_result || {};\n    const issues = evalRes.evaluation_issues || [];\n    allIssues.push(...issues);\n    \n    if (evalRes.projects_evaluated === 0) {\n      status = \"NOT_VERIFIED\";\n      confidence = 0.95;\n      riskLevel = \"HIGH\";\n    } else if (!evalRes.count_passed || evalRes.rejected_projects.length > 0 || issues.length > 0) {\n      status = \"NOT_VERIFIED\";\n      confidence = 0.98;\n      riskLevel = \"HIGH\";\n    } else {\n      status = \"VERIFIED\";\n      confidence = 0.99;\n      riskLevel = \"LOW\";\n    }\n  }\n  \n  const evalRes = data.evaluation_result || {};\n  const reqs = data.experience_requirements || {};\n  \n  return {\n    json: {\n      agent: \"EXPERIENCE_AGENT\",\n      status,\n      confidence,\n      evidence: {\n        projects_evaluated: evalRes.projects_evaluated || 0,\n        qualifying_projects: evalRes.qualifying_projects || 0,\n        minimum_required_projects: reqs.minimum_similar_works || 0,\n        minimum_project_value: reqs.minimum_project_value || 0,\n        experience_period_years: reqs.experience_period_years || 0,\n        checks: evalRes.compliance_checks || [],\n        rejected_projects: evalRes.rejected_projects || [],\n        certificates_verified: evalRes.certificates_verified || 0,\n        similarity_verified: evalRes.similarity_verified || 0,\n        registry_source: data.evidence_provided ? \"BIDDER_SUBMISSION\" : \"MOCK_PORTAL_REGISTRY\"\n      },\n      issues: allIssues,\n      risk_level: riskLevel,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "exp-synthesis",
+        "name": "⚖️ Experience Risk & Status Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 340],
+        "notes": "SYNTHESIS ENGINE\nEnforces standard child-agent contract, confidence grading, and risk attribution"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "exp-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "exp-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [1620, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"EXPERIENCE_AGENT\",\n    status: \"ERROR\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Experience verification agent encountered an unexpected execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Experience verification agent failed unexpectedly\"],\n    risk_level: \"HIGH\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "exp-error-fallback",
+        "name": "🛑 Experience Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 560],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: 🏗 EXPERIENCE & ELIGIBILITY AGENT\nDeterministic verification of past project performance.\nVerifies similar works count, value thresholds, completion date bounds, and certificate validity.",
+          "height": 160,
+          "width": 600,
+          "color": 5
+        },
+        "id": "exp-card-1",
+        "name": "Note - Card 1 Experience Agent",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [240, 60]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: ⚙️ DETERMINISTIC ELIGIBILITY RULES\nStrict mathematical verification:\n• Minimum similar works count threshold\n• Individual contract value minimums\n• Look-back experience period calculation\n• Mandatory completion certificate presence\n• Technical similarity compliance",
+          "height": 160,
+          "width": 650,
+          "color": 3
+        },
+        "id": "exp-card-2",
+        "name": "Note - Card 2 Eligibility Rules",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1060, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Experience Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Experience Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Experience Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Experience Input Validation": {
+        "main": [
+          [
+            {
+              "node": "⚙️ Experience Rule Evaluation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚙️ Experience Rule Evaluation": {
+        "main": [
+          [
+            {
+              "node": "⚖️ Experience Risk & Status Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚖️ Experience Risk & Status Synthesis": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

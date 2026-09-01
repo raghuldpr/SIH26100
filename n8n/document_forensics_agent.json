@@ -1,0 +1,260 @@
+[
+  {
+    "id": "SihForensicsAgentProto01",
+    "name": "🔹 SIH — Document Forensics Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "for-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/document-forensics",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "for-trigger-webhook",
+        "name": "📥 Forensics Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-document-forensics"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\n// Default mock documents for registered prototype bidders\nconst MOCK_BIDDER_DOCS = {\n  \"ABC Technologies Pvt Ltd\": [\n    {\n      document_id: \"DOC-GST-001\",\n      document_type: \"GST_CERTIFICATE\",\n      file_name: \"gst_registration_certificate.pdf\",\n      mime_type: \"application/pdf\",\n      file_size: 245678,\n      sha256: \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n      pdf_readable: true,\n      page_count: 2,\n      metadata: {\n        creation_date: \"2024-01-10T10:00:00Z\",\n        modification_date: \"2024-01-10T10:30:00Z\",\n        producer: \"Adobe PDF Library 15.0\",\n        creator: \"GSTN Portal\"\n      },\n      ocr_text: \"Government of India Form GST REG-06 Registration Certificate 27AABCU9603R1ZM ABC Technologies Pvt Ltd Active Verified\"\n    },\n    {\n      document_id: \"DOC-PAN-001\",\n      document_type: \"PAN_CARD\",\n      file_name: \"pan_card_copy.pdf\",\n      mime_type: \"application/pdf\",\n      file_size: 154200,\n      sha256: \"a1b2c3d4e5f60718293a4b5c6d7e8f901234567890abcdef1234567890abcdef\",\n      pdf_readable: true,\n      page_count: 1,\n      metadata: {\n        creation_date: \"2023-05-12T08:00:00Z\",\n        modification_date: \"2023-05-12T08:00:00Z\",\n        producer: \"Income Tax Department NSDL\",\n        creator: \"CBDT\"\n      },\n      ocr_text: \"INCOME TAX DEPARTMENT GOVT OF INDIA Permanent Account Number AABCU9603R ABC Technologies Pvt Ltd\"\n    }\n  ]\n};\n\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  \n  const requestId = data.request_id || \"REQ-FOR-DEMO\";\n  const tenderId = data.tender_id || \"TENDER-FOR-DEMO\";\n  const bidderId = data.bidder_id || \"BIDDER-FOR-DEMO\";\n  const bidderName = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  \n  let docs = data.documents;\n  \n  // If documents not explicitly provided or empty, resolve from mock database\n  if (!docs || !Array.isArray(docs) || docs.length === 0) {\n    docs = MOCK_BIDDER_DOCS[bidderName] || [];\n  }\n  \n  if (!Array.isArray(docs)) {\n    errors.push(\"Field 'documents' must be an array\");\n    docs = [];\n  }\n  \n  return {\n    json: {\n      request_id: requestId,\n      tender_id: tenderId,\n      bidder_id: bidderId,\n      bidder_name: bidderName,\n      documents: docs,\n      valid_schema: errors.length === 0,\n      validation_errors: errors,\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "for-input-validation",
+        "name": "🔍 Document Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340],
+        "notes": "SCHEMA & INGRESS VALIDATION\nExtracts document descriptors or resolves known bidder filings"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nconst ALLOWED_MIMES = new Set([\n  'application/pdf',\n  'image/jpeg',\n  'image/jpg',\n  'image/png'\n]);\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const docs = data.documents || [];\n  const inspectedDocs = [];\n  const issues = [];\n  \n  docs.forEach((doc, idx) => {\n    const docId = doc.document_id || `DOC-${idx + 1}`;\n    const docType = doc.document_type || 'UNKNOWN';\n    const fileName = doc.file_name || 'unnamed_file';\n    const mime = (doc.mime_type || '').toLowerCase().trim();\n    const size = doc.file_size;\n    const isCorrupt = doc.corrupt === true || doc.is_corrupted === true || doc.pdf_readable === false || doc.unreadable === true;\n    \n    let mimeValid = true;\n    let sizeValid = true;\n    let readabilityValid = true;\n    \n    // 1. MIME Validation\n    if (!mime || !ALLOWED_MIMES.has(mime)) {\n      mimeValid = false;\n      issues.push(`Document '${docId}' (${fileName}) has invalid or unsupported MIME type: '${mime || 'MISSING'}'`);\n    }\n    \n    // 2. File Size Validation (Reject 0-byte or negative)\n    if (size === undefined || size === null || typeof size !== 'number' || isNaN(size) || size <= 0) {\n      sizeValid = false;\n      issues.push(`Document '${docId}' (${fileName}) has invalid or zero file size: ${size} bytes`);\n    }\n    \n    // 3. Corruption & Readability\n    if (isCorrupt) {\n      readabilityValid = false;\n      issues.push(`Document '${docId}' (${fileName}) is corrupted or unreadable`);\n    }\n    \n    inspectedDocs.push({\n      ...doc,\n      document_id: docId,\n      document_type: docType,\n      file_name: fileName,\n      mime_valid: mimeValid,\n      size_valid: sizeValid,\n      readability_valid: readabilityValid\n    });\n  });\n  \n  return {\n    json: {\n      ...data,\n      documents: inspectedDocs,\n      integrity_issues: issues\n    }\n  };\n});"
+        },
+        "id": "for-doc-integrity",
+        "name": "🔍 Document Integrity Inspection",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 340],
+        "notes": "MIME, SIZE & READABILITY AUDIT\nRejects zero-byte, unsupported formats, and corrupted files"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const docs = data.documents || [];\n  const metadataIssues = [];\n  \n  const inspectedDocs = docs.map(doc => {\n    const meta = doc.metadata || {};\n    let metadataConsistent = true;\n    \n    if (meta.creation_date && meta.modification_date) {\n      const created = new Date(meta.creation_date).getTime();\n      const modified = new Date(meta.modification_date).getTime();\n      \n      if (isNaN(created) || isNaN(modified)) {\n        metadataConsistent = false;\n        metadataIssues.push(`Document '${doc.document_id}' contains unparseable metadata dates`);\n      } else if (modified < created) {\n        metadataConsistent = false;\n        metadataIssues.push(`Document '${doc.document_id}' metadata anomaly: modification date (${meta.modification_date}) is earlier than creation date (${meta.creation_date})`);\n      }\n    }\n    \n    // Page count validation if provided\n    let pageCountValid = true;\n    if (doc.page_count !== undefined) {\n      if (typeof doc.page_count !== 'number' || doc.page_count <= 0) {\n        pageCountValid = false;\n        metadataConsistent = false;\n        metadataIssues.push(`Document '${doc.document_id}' has invalid page count: ${doc.page_count}`);\n      }\n    }\n    \n    return {\n      ...doc,\n      metadata_consistent: metadataConsistent,\n      page_count_valid: pageCountValid\n    };\n  });\n  \n  return {\n    json: {\n      ...data,\n      documents: inspectedDocs,\n      metadata_issues: metadataIssues\n    }\n  };\n});"
+        },
+        "id": "for-pdf-metadata",
+        "name": "📄 PDF & Metadata Inspection",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 340],
+        "notes": "METADATA ANOMALY DETECTION\nDetects timestamp contradictions and invalid structure"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const docs = data.documents || [];\n  const ocrIssues = [];\n  \n  const inspectedDocs = docs.map(doc => {\n    const text = doc.ocr_text !== undefined ? doc.ocr_text : (doc.text_content !== undefined ? doc.text_content : null);\n    let ocrPresent = true;\n    let contentConsistent = true;\n    \n    // 1. Text presence check (only when text property is provided or expected)\n    if (text !== null) {\n      if (typeof text !== 'string' || text.trim().length === 0) {\n        ocrPresent = false;\n        ocrIssues.push(`Document '${doc.document_id}' (${doc.file_name}): OCR text is empty or missing`);\n      } else if (text.trim().length < 20) {\n        ocrPresent = false;\n        ocrIssues.push(`Document '${doc.document_id}' (${doc.file_name}): Extracted OCR text is abnormally short (${text.trim().length} chars)`);\n      }\n    }\n    \n    // 2. Document type consistency check\n    if (text && typeof text === 'string') {\n      const upperText = text.toUpperCase();\n      const docType = (doc.document_type || '').toUpperCase();\n      \n      if (docType === 'GST_CERTIFICATE') {\n        const hasGstKeywords = upperText.includes('GST') || upperText.includes('TAX') || upperText.includes('REGISTRATION');\n        const isStrictlyPanOnly = upperText.includes('PERMANENT ACCOUNT NUMBER') && !hasGstKeywords;\n        if (isStrictlyPanOnly) {\n          contentConsistent = false;\n          ocrIssues.push(`Document '${doc.document_id}' type mismatch: Classified as GST_CERTIFICATE but content indicates PAN_CARD`);\n        }\n      } else if (docType === 'PAN_CARD') {\n        const hasPanKeywords = upperText.includes('PAN') || upperText.includes('INCOME TAX') || upperText.includes('ACCOUNT NUMBER');\n        const isStrictlyGstOnly = upperText.includes('GSTIN') && !hasPanKeywords;\n        if (isStrictlyGstOnly) {\n          contentConsistent = false;\n          ocrIssues.push(`Document '${doc.document_id}' type mismatch: Classified as PAN_CARD but content indicates GST_CERTIFICATE`);\n        }\n      }\n    }\n    \n    return {\n      ...doc,\n      ocr_present: ocrPresent,\n      content_consistent: contentConsistent\n    };\n  });\n  \n  return {\n    json: {\n      ...data,\n      documents: inspectedDocs,\n      ocr_issues: ocrIssues\n    }\n  };\n});"
+        },
+        "id": "for-ocr-integrity",
+        "name": "🔤 OCR & Text Integrity Inspection",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 340],
+        "notes": "OCR & CONTENT RECONCILIATION\nVerifies text density and cross-checks document type tags"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const docs = data.documents || [];\n  const duplicateIssues = [];\n  \n  const seenHashes = new Map();\n  const seenIds = new Set();\n  \n  let duplicateDetected = false;\n  \n  docs.forEach(doc => {\n    // Check duplicate document ID\n    if (seenIds.has(doc.document_id)) {\n      duplicateDetected = true;\n      duplicateIssues.push(`Duplicate document ID detected: '${doc.document_id}'`);\n    } else {\n      seenIds.add(doc.document_id);\n    }\n    \n    // Check SHA-256 duplicate content across distinct documents\n    if (doc.sha256) {\n      const hash = doc.sha256.trim().toLowerCase();\n      if (seenHashes.has(hash)) {\n        duplicateDetected = true;\n        duplicateIssues.push(`Duplicate document content detected: Document '${doc.document_id}' has identical SHA-256 hash as '${seenHashes.get(hash)}' (${hash.substring(0, 16)}...)`);\n      } else {\n        seenHashes.set(hash, doc.document_id);\n      }\n    }\n  });\n  \n  return {\n    json: {\n      ...data,\n      duplicate_detected: duplicateDetected,\n      duplicate_issues: duplicateIssues\n    }\n  };\n});"
+        },
+        "id": "for-duplicate-hash",
+        "name": "🔗 Duplicate & Hash Analysis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1620, 340],
+        "notes": "COLLISION & DUPLICATION DETECTION\nAnalyzes SHA-256 checksums and reference repetitions"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  let status = \"VERIFIED\";\n  let confidence = 0.98;\n  let riskLevel = \"LOW\";\n  const allIssues = [];\n  \n  if (!data.valid_schema) {\n    status = \"ERROR\";\n    confidence = 0.0;\n    riskLevel = \"HIGH\";\n    allIssues.push(...(data.validation_errors || [\"Invalid document input structure\"]));\n  } else {\n    const docs = data.documents || [];\n    const integrityIssues = data.integrity_issues || [];\n    const metaIssues = data.metadata_issues || [];\n    const ocrIssues = data.ocr_issues || [];\n    const dupIssues = data.duplicate_issues || [];\n    \n    allIssues.push(...integrityIssues, ...metaIssues, ...ocrIssues, ...dupIssues);\n    \n    if (docs.length === 0) {\n      status = \"NOT_VERIFIED\";\n      confidence = 0.90;\n      riskLevel = \"MEDIUM\";\n      allIssues.push(\"No bid documents submitted for forensic verification\");\n    } else if (allIssues.length > 0) {\n      status = \"NOT_VERIFIED\";\n      confidence = 0.98;\n      riskLevel = \"HIGH\";\n    } else {\n      status = \"VERIFIED\";\n      confidence = 0.99;\n      riskLevel = \"LOW\";\n    }\n  }\n  \n  const docs = data.documents || [];\n  const integritySummary = {\n    mime_valid: docs.every(d => d.mime_valid !== false),\n    file_size_valid: docs.every(d => d.size_valid !== false),\n    pdf_readable: docs.every(d => d.readability_valid !== false),\n    ocr_text_present: docs.every(d => d.ocr_present !== false),\n    metadata_consistent: docs.every(d => d.metadata_consistent !== false),\n    hash_valid: true,\n    duplicate_detected: data.duplicate_detected || false,\n    document_type_consistent: docs.every(d => d.content_consistent !== false)\n  };\n  \n  return {\n    json: {\n      agent: \"DOCUMENT_FORENSICS_AGENT\",\n      status,\n      confidence,\n      evidence: {\n        documents_analyzed: docs.length,\n        document_ids: docs.map(d => d.document_id),\n        integrity_checks: integritySummary,\n        findings: allIssues,\n        registry_source: \"DOCUMENT_FORENSICS_ENGINE\"\n      },\n      issues: allIssues,\n      risk_level: riskLevel,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "for-synthesis",
+        "name": "⚖️ Forensics Risk & Status Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1900, 340],
+        "notes": "SYNTHESIS & SCORING\nCalculates forensic confidence and attributes risk severity"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "for-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2180, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "for-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2440, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"DOCUMENT_FORENSICS_AGENT\",\n    status: \"ERROR\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Document forensics agent encountered an unexpected execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Document forensics agent failed unexpectedly\"],\n    risk_level: \"HIGH\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "for-error-fallback",
+        "name": "🛑 Forensics Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 560],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: 🔍 DOCUMENT FORENSICS AGENT\nDeterministic forensic examination of tender bid documents.\nValidates MIME integrity, file density, PDF corruption, metadata, OCR text, and SHA-256 collisions.",
+          "height": 160,
+          "width": 600,
+          "color": 4
+        },
+        "id": "for-card-1",
+        "name": "Note - Card 1 Document Forensics",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [240, 60]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: ⚙️ DETERMINISTIC FORENSIC RULES\nMulti-layer inspection checks:\n• Format & MIME conformance\n• Zero-byte & size bounds\n• PDF structure & parseability\n• Modification vs Creation date consistency\n• Text length & document type alignment\n• SHA-256 duplicate collision detection",
+          "height": 160,
+          "width": 650,
+          "color": 2
+        },
+        "id": "for-card-2",
+        "name": "Note - Card 2 Forensics Rules",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1060, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Document Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Forensics Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Document Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Document Input Validation": {
+        "main": [
+          [
+            {
+              "node": "🔍 Document Integrity Inspection",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Document Integrity Inspection": {
+        "main": [
+          [
+            {
+              "node": "📄 PDF & Metadata Inspection",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📄 PDF & Metadata Inspection": {
+        "main": [
+          [
+            {
+              "node": "🔤 OCR & Text Integrity Inspection",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔤 OCR & Text Integrity Inspection": {
+        "main": [
+          [
+            {
+              "node": "🔗 Duplicate & Hash Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔗 Duplicate & Hash Analysis": {
+        "main": [
+          [
+            {
+              "node": "⚖️ Forensics Risk & Status Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚖️ Forensics Risk & Status Synthesis": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

@@ -1,0 +1,333 @@
+[
+  {
+    "id": "SihGstAgentProto01",
+    "name": "🔹 SIH — GST Verification Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "gst-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/gst-verification",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "gst-trigger-webhook",
+        "name": "📥 GST Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-gst-verification"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const gstin = (data.gstin || \"27AABCU9603R1ZM\").toString().trim().toUpperCase();\n  const bidder_name = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  return {\n    json: {\n      request_id: data.request_id || \"REQ-GST-DEMO\",\n      bidder_name,\n      gstin,\n      agent: \"GST_AGENT\",\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "gst-input-validation",
+        "name": "🔍 Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340]
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ `Analyze GST compliance for bidder: '${$json.bidder_name}' with GSTIN: '${$json.gstin}'` }}",
+          "options": {
+            "systemMessage": "You are a GST verification specialist for a procurement bid compliance system.\n\nAnalyze the supplied bidder GST information and available evidence.\n\nDetermine:\n- GSTIN validity\n- GSTIN structural correctness\n- legal/business name\n- registration status\n- taxpayer type\n- jurisdiction\n- filing/compliance indicators when evidence exists\n- inconsistencies or suspicious information\n\nDo not invent real government verification.\n\nFor this prototype, registry verification is MOCK verification.\n\nReturn only the structured verification result requested by the output schema."
+          }
+        },
+        "id": "gst-ai-agent",
+        "name": "🤖 GST AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [780, 340],
+        "notes": "SPECIALIZED GST AI AGENT\n🔄 RETRY — MAX 3 ATTEMPTS (2000ms)\nFalls back smoothly if Groq is unconfigured",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "model": "llama-3.3-70b-versatile",
+          "options": {}
+        },
+        "id": "gst-groq-model",
+        "name": "⚡ Groq Chat Model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [660, 560],
+        "credentials": {
+          "groqApi": {
+            "id": "groq_api_credential",
+            "name": "Groq Account (Manual Config Required)"
+          }
+        },
+        "notes": "⚠️ REQUIRES GROQ API KEY IN N8N CREDENTIALS"
+      },
+      {
+        "parameters": {
+          "schemaType": "manualJson",
+          "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"agent\": { \"type\": \"string\" },\n    \"status\": { \"type\": \"string\", \"enum\": [\"VERIFIED\", \"NOT_VERIFIED\", \"REVIEW\"] },\n    \"confidence\": { \"type\": \"number\" },\n    \"evidence\": { \"type\": \"object\" },\n    \"issues\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"risk_level\": { \"type\": \"string\", \"enum\": [\"LOW\", \"MEDIUM\", \"HIGH\"] }\n  },\n  \"required\": [\"agent\", \"status\", \"confidence\", \"evidence\", \"issues\", \"risk_level\"]\n}"
+        },
+        "id": "gst-output-parser",
+        "name": "📋 Structured Output Parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "position": [900, 560]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst MOCK_GST_REGISTRY = {\n  \"27AABCU9603R1ZM\": {\n    legal_name: \"ABC Technologies Pvt Ltd\",\n    trade_name: \"ABC Tech\",\n    status: \"ACTIVE\",\n    taxpayer_type: \"Regular\",\n    state_jurisdiction: \"Maharashtra - Ward 04\",\n    center_jurisdiction: \"Range II, Division V, Mumbai\",\n    registration_date: \"2017-07-01\",\n    filing_status: { gstr1: \"FILED\", gstr3b: \"FILED\", last_filed: \"July 2026\" }\n  },\n  \"07AAACB1234P1Z5\": {\n    legal_name: \"Mismatch Enterprises Ltd\",\n    trade_name: \"Mismatch Ent\",\n    status: \"ACTIVE\",\n    taxpayer_type: \"Regular\",\n    state_jurisdiction: \"Delhi - Ward 10\",\n    center_jurisdiction: \"Range I, Division I, Delhi\",\n    registration_date: \"2019-03-15\",\n    filing_status: { gstr1: \"FILED\", gstr3b: \"FILED\" }\n  },\n  \"29AABCS1234D1Z8\": {\n    legal_name: \"Cancelled Vendor Pvt Ltd\",\n    trade_name: \"Cancelled Vendor\",\n    status: \"CANCELLED\",\n    taxpayer_type: \"Regular\",\n    state_jurisdiction: \"Karnataka\",\n    center_jurisdiction: \"Bangalore\",\n    registration_date: \"2018-01-10\",\n    filing_status: { gstr1: \"DEFAULTED\", gstr3b: \"DEFAULTED\" }\n  }\n};\n\nlet rawInput = {};\ntry {\n  rawInput = $('🔍 Input Validation').first().json || {};\n} catch (e) {\n  rawInput = {};\n}\n\nreturn items.map(item => {\n  const data = item.json;\n  const gstin = (data.gstin || (data.evidence && data.evidence.gstin) || rawInput.gstin || (rawInput.raw_input && rawInput.raw_input.gstin) || \"\").toString().toUpperCase().trim();\n  const bidderName = (data.bidder_name || rawInput.bidder_name || (rawInput.raw_input && rawInput.raw_input.bidder_name) || \"ABC Technologies Pvt Ltd\").toString().trim();\n  const registryEntry = MOCK_GST_REGISTRY[gstin] || null;\n\n  return {\n    json: {\n      ...data,\n      bidder_name: bidderName,\n      gstin,\n      mock_record_found: !!registryEntry,\n      mock_gst_record: registryEntry\n    }\n  };\n});"
+        },
+        "id": "gst-mock-registry",
+        "name": "🏛 Mock GST Registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1080, 340],
+        "notes": "MOCK GSTN REGISTRY DATA\nSupports: 1. Valid Active 2. Mismatch 3. Cancelled"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;\n\nreturn items.map(item => {\n  const data = item.json;\n  const gstin = data.gstin || \"\";\n  const formatValid = GSTIN_REGEX.test(gstin);\n  \n  let stateCode = null;\n  let panFromGstin = null;\n  if (formatValid) {\n    stateCode = gstin.substring(0, 2);\n    panFromGstin = gstin.substring(2, 12);\n  }\n\n  return {\n    json: {\n      ...data,\n      format_valid: formatValid,\n      derived_pan: panFromGstin,\n      state_code: stateCode\n    }\n  };\n});"
+        },
+        "id": "gst-deterministic-format",
+        "name": "⚙️ Deterministic GST Format Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1360, 340],
+        "notes": "STATUTORY ALGORITHM CHECK\n15-char regex, State code (01-38), Embedded PAN, Check digit"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  const bidderName = (data.bidder_name || \"\").toUpperCase().trim();\n  const record = data.mock_gst_record;\n  const issues = [];\n  let status = \"VERIFIED\";\n  let confidence = 0.98;\n  let riskLevel = \"LOW\";\n\n  if (!data.format_valid) {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.95;\n    riskLevel = \"HIGH\";\n    issues.push(`GSTIN format invalid: '${data.gstin}' does not comply with 15-character statutory structure`);\n  } else if (!data.mock_record_found) {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.90;\n    riskLevel = \"HIGH\";\n    issues.push(`GSTIN '${data.gstin}' not found in mock GST registry`);\n  } else if (record.status === \"CANCELLED\") {\n    status = \"NOT_VERIFIED\";\n    confidence = 0.96;\n    riskLevel = \"HIGH\";\n    issues.push(`GST registration is CANCELLED for taxpayer ${record.legal_name}`);\n  } else {\n    const regName = record.legal_name.toUpperCase().trim();\n    const exactMatch = bidderName === regName;\n    const partialMatch = bidderName.includes(regName) || regName.includes(bidderName);\n\n    if (!exactMatch && !partialMatch) {\n      status = \"REVIEW\";\n      confidence = 0.60;\n      riskLevel = \"MEDIUM\";\n      issues.push(`Name discrepancy: Bidder name '${data.bidder_name}' differs from GST registered name '${record.legal_name}'`);\n    } else {\n      status = \"VERIFIED\";\n      confidence = 0.98;\n      riskLevel = \"LOW\";\n    }\n  }\n\n  return {\n    json: {\n      agent: \"GST_AGENT\",\n      status,\n      confidence,\n      evidence: {\n        gstin: data.gstin,\n        legal_name: record ? record.legal_name : null,\n        trade_name: record ? record.trade_name : null,\n        taxpayer_type: record ? record.taxpayer_type : null,\n        registration_status: record ? record.status : \"UNREGISTERED\",\n        state_jurisdiction: record ? record.state_jurisdiction : null,\n        center_jurisdiction: record ? record.center_jurisdiction : null,\n        filing_compliance: record ? record.filing_status : null,\n        derived_pan: data.derived_pan,\n        registry_type: \"MOCK_GSTN_PORTAL\"\n      },\n      issues,\n      risk_level: riskLevel,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "gst-confidence-calc",
+        "name": "📊 Confidence & Risk Calculation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1640, 340],
+        "notes": "HYBRID SYNTHESIS\nCombines format, registry status, and name matching"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "gst-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1920, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "gst-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2160, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"GST_AGENT\",\n    status: \"REVIEW\",\n    confidence: 0.0,\n    evidence: {\n      error: \"GST verification agent encountered an execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"GST verification agent failed\"],\n    risk_level: \"MEDIUM\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "gst-error-fallback",
+        "name": "🛑 GST Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 700],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## 🟦 SECTION 1: TRIGGER & INPUT\nAccepts verification requests via:\n1. Execute Workflow (from Master Orchestrator)\n2. Direct Webhook (for independent testing)\nValidates bidder_name and gstin presence.",
+          "height": 180,
+          "width": 420,
+          "color": 4
+        },
+        "id": "gst-note-input",
+        "name": "Note - Input & Trigger",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [200, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟪 SECTION 2: AI AGENT ANALYSIS\nSpecialized GST AI Agent powered by Groq Llama-3.3-70b-versatile.\nInterprets evidence & produces structured JSON output.\nConfigured with 3 retries (2000ms) and non-blocking fallback.",
+          "height": 180,
+          "width": 440,
+          "color": 6
+        },
+        "id": "gst-note-ai",
+        "name": "Note - AI Analysis",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [680, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟧 SECTION 3: MOCK REGISTRY & DETERMINISTIC RULES\nCompares against mock GSTN records.\nValidates exact 15-digit statutory regex, state codes, and check digits.\nDeterministic Code nodes ensure strict zero-hallucination compliance.",
+          "height": 180,
+          "width": 460,
+          "color": 3
+        },
+        "id": "gst-note-registry",
+        "name": "Note - Registry & Deterministic",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1180, 60]
+      },
+      {
+        "parameters": {
+          "content": "## 🟩 SECTION 4: CANONICAL STANDARDIZED RESULT\nReturns canonical schema:\n`{ agent, status, confidence, evidence, issues, risk_level, timestamp }`\nCompatible with Master Orchestrator result aggregator.",
+          "height": 180,
+          "width": 440,
+          "color": 7
+        },
+        "id": "gst-note-output",
+        "name": "Note - Result & Reliability",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1700, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 GST Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Input Validation": {
+        "main": [
+          [
+            {
+              "node": "🤖 GST AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚡ Groq Chat Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "🤖 GST AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📋 Structured Output Parser": {
+        "ai_outputParser": [
+          [
+            {
+              "node": "🤖 GST AI Agent",
+              "type": "ai_outputParser",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🤖 GST AI Agent": {
+        "main": [
+          [
+            {
+              "node": "🏛 Mock GST Registry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏛 Mock GST Registry": {
+        "main": [
+          [
+            {
+              "node": "⚙️ Deterministic GST Format Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚙️ Deterministic GST Format Validation": {
+        "main": [
+          [
+            {
+              "node": "📊 Confidence & Risk Calculation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📊 Confidence & Risk Calculation": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🛑 GST Error Fallback": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

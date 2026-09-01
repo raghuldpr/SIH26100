@@ -1,0 +1,260 @@
+[
+  {
+    "id": "SihRiskIntelligenceAgentProto01",
+    "name": "🔹 SIH — Risk Intelligence Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "risk-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/risk-intelligence",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "risk-trigger-webhook",
+        "name": "📥 Risk Intelligence Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-risk-intelligence"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  \n  const requestId = data.request_id || \"REQ-RISK-DEMO\";\n  const tenderId = data.tender_id || \"TENDER-RISK-DEMO\";\n  const bidderId = data.bidder_id || \"BIDDER-RISK-DEMO\";\n  const bidderName = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  \n  let agentResults = data.agent_results;\n  \n  // Check if agent results array is provided\n  if (agentResults !== undefined && agentResults !== null) {\n    if (!Array.isArray(agentResults)) {\n      errors.push(\"Field 'agent_results' must be an array\");\n      agentResults = [];\n    }\n  } else {\n    agentResults = [];\n  }\n  \n  const requiredAgents = Array.isArray(data.required_agents) ? data.required_agents : [];\n  \n  return {\n    json: {\n      request_id: requestId,\n      tender_id: tenderId,\n      bidder_id: bidderId,\n      bidder_name: bidderName,\n      agent_results: agentResults,\n      required_agents: requiredAgents,\n      valid_schema: errors.length === 0,\n      validation_errors: errors,\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "risk-input-validation",
+        "name": "🔍 Risk Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340],
+        "notes": "SCHEMA & INGRESS VALIDATION\nValidates incoming verification request context and agent_results payload"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\n// Canonical list of known specialized agents in SIH-26100\nconst ALL_KNOWN_AGENTS = [\n  \"GST_AGENT\",\n  \"PAN_AGENT\",\n  \"UDYAM_AGENT\",\n  \"FINANCIAL_AGENT\",\n  \"DOCUMENT_FORENSICS_AGENT\",\n  \"EXPERIENCE_AGENT\",\n  \"ENTITY_RESOLUTION_AGENT\"\n];\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const receivedResults = data.agent_results || [];\n  const resultMap = new Map();\n  \n  receivedResults.forEach(r => {\n    if (r && r.agent) {\n      resultMap.set(r.agent.toUpperCase(), r);\n    }\n  });\n  \n  const evaluatedAgents = [];\n  const missingRequired = [];\n  \n  // Identify which agents were required vs received (only when agent_results are provided for cross-evaluation)\n  const required = (receivedResults.length > 0 && data.required_agents && data.required_agents.length > 0) \n    ? data.required_agents.map(a => a.toUpperCase())\n    : [];\n    \n  required.forEach(req => {\n    if (req !== 'RISK_INTELLIGENCE_AGENT' && req !== 'FINAL_COMPLIANCE_AGENT' && !resultMap.has(req)) {\n      missingRequired.push(req);\n    }\n  });\n  \n  receivedResults.forEach(r => {\n    evaluatedAgents.push({\n      agent: (r.agent || 'UNKNOWN_AGENT').toUpperCase(),\n      status: (r.status || 'UNKNOWN').toUpperCase(),\n      confidence: typeof r.confidence === 'number' ? r.confidence : 1.0,\n      risk_level: (r.risk_level || 'LOW').toUpperCase(),\n      issues: Array.isArray(r.issues) ? r.issues : (r.issues ? [String(r.issues)] : [])\n    });\n  });\n  \n  // Add explicit NOT_EXECUTED entries for missing required agents\n  missingRequired.forEach(missingAgent => {\n    evaluatedAgents.push({\n      agent: missingAgent,\n      status: 'NOT_EXECUTED',\n      confidence: 0.0,\n      risk_level: 'HIGH',\n      issues: [`Required agent ${missingAgent} was not executed or returned no result`]\n    });\n  });\n  \n  return {\n    json: {\n      ...data,\n      collected_agents: evaluatedAgents,\n      missing_required_agents: missingRequired\n    }\n  };\n});"
+        },
+        "id": "risk-agent-collector",
+        "name": "📦 Agent Result Collector",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 340],
+        "notes": "RESULT CONSOLIDATION\nCollects executed agent outcomes and flags unexecuted required agents"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nfunction mapAgentToCategory(agent) {\n  const a = agent.toUpperCase();\n  if (a.includes('GST') || a.includes('PAN') || a.includes('UDYAM')) return 'STATUTORY_RISK';\n  if (a.includes('FINANC')) return 'FINANCIAL_RISK';\n  if (a.includes('FORENSIC') || a.includes('DOC')) return 'DOCUMENT_RISK';\n  if (a.includes('EXPERIENCE') || a.includes('ELIGIBIL')) return 'EXPERIENCE_RISK';\n  if (a.includes('ENTITY') || a.includes('RESOLUT')) return 'IDENTITY_RISK';\n  return 'GENERAL_RISK';\n}\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const agents = data.collected_agents || [];\n  const signals = [];\n  const failedAgents = [];\n  const errorAgents = [];\n  const notExecutedAgents = [];\n  \n  agents.forEach(a => {\n    const category = mapAgentToCategory(a.agent);\n    \n    if (a.status === 'NOT_VERIFIED') {\n      failedAgents.push(a.agent);\n      signals.push({\n        agent: a.agent,\n        type: 'STATUS_FAILURE',\n        category,\n        severity: 'HIGH',\n        penalty: 40,\n        description: `${a.agent} failed compliance verification (NOT_VERIFIED)`,\n        issues: a.issues\n      });\n    } else if (a.status === 'ERROR') {\n      errorAgents.push(a.agent);\n      signals.push({\n        agent: a.agent,\n        type: 'SYSTEM_ERROR',\n        category: 'SYSTEM_ERROR_RISK',\n        severity: 'HIGH',\n        penalty: 40,\n        description: `${a.agent} encountered an execution error (ERROR)`,\n        issues: a.issues\n      });\n    } else if (a.status === 'NOT_EXECUTED') {\n      notExecutedAgents.push(a.agent);\n      signals.push({\n        agent: a.agent,\n        type: 'UNEXECUTED_AGENT',\n        category: 'EXECUTION_RISK',\n        severity: 'HIGH',\n        penalty: 40,\n        description: `Required agent ${a.agent} did not execute`,\n        issues: a.issues\n      });\n    } else if (a.status === 'VERIFIED') {\n      // Check secondary risk levels on verified agents (non-critical anomalies)\n      if (a.risk_level === 'HIGH') {\n        signals.push({\n          agent: a.agent,\n          type: 'ANOMALY_HIGH',\n          category,\n          severity: 'HIGH',\n          penalty: 30,\n          description: `${a.agent} passed but flagged high residual risk`,\n          issues: a.issues\n        });\n      } else if (a.risk_level === 'MEDIUM') {\n        signals.push({\n          agent: a.agent,\n          type: 'ANOMALY_MEDIUM',\n          category,\n          severity: 'MEDIUM',\n          penalty: 15,\n          description: `${a.agent} passed with minor anomalies / review indicators`,\n          issues: a.issues\n        });\n      }\n    }\n  });\n  \n  return {\n    json: {\n      ...data,\n      extracted_signals: signals,\n      failed_agents: failedAgents,\n      error_agents: errorAgents,\n      not_executed_agents: notExecutedAgents\n    }\n  };\n});"
+        },
+        "id": "risk-signal-extraction",
+        "name": "🔍 Risk Signal Extraction",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 340],
+        "notes": "SIGNAL EXTRACTION\nMaps agent failures to domain risk categories and base penalty scores"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const agents = data.collected_agents || [];\n  const confidenceFlags = [];\n  const confidenceSignals = [];\n  \n  agents.forEach(a => {\n    // Only inspect confidence if agent actually executed\n    if (a.status !== 'NOT_EXECUTED') {\n      if (a.confidence < 0.70) {\n        confidenceFlags.push(`${a.agent} has low confidence (${a.confidence})`);\n        confidenceSignals.push({\n          agent: a.agent,\n          type: 'CONFIDENCE_LOW',\n          category: 'CONFIDENCE_RISK',\n          severity: 'HIGH',\n          penalty: 20,\n          description: `${a.agent} returned low evaluation confidence (${a.confidence} < 0.70)`\n        });\n      } else if (a.confidence < 0.90) {\n        confidenceFlags.push(`${a.agent} has moderate confidence (${a.confidence})`);\n        confidenceSignals.push({\n          agent: a.agent,\n          type: 'CONFIDENCE_MEDIUM',\n          category: 'CONFIDENCE_RISK',\n          severity: 'MEDIUM',\n          penalty: 10,\n          description: `${a.agent} returned moderate evaluation confidence (${a.confidence} in [0.70, 0.90))`\n        });\n      }\n    }\n  });\n  \n  return {\n    json: {\n      ...data,\n      confidence_flags: confidenceFlags,\n      confidence_signals: confidenceSignals\n    }\n  };\n});"
+        },
+        "id": "risk-confidence-evaluation",
+        "name": "📊 Confidence Risk Evaluation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 340],
+        "notes": "CONFIDENCE THRESHOLD AUDIT\nIdentifies ambiguity signals without misclassifying moderate confidence as high risk"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const extracted = data.extracted_signals || [];\n  const confSignals = data.confidence_signals || [];\n  const allSignals = [...extracted, ...confSignals];\n  \n  // Cumulative calculation with 100-point ceiling cap\n  let totalScore = 0;\n  const distinctCategories = new Set();\n  \n  allSignals.forEach(sig => {\n    totalScore += (sig.penalty || 0);\n    if (sig.category) distinctCategories.add(sig.category);\n  });\n  \n  const cappedScore = Math.min(100, Math.max(0, totalScore));\n  \n  let riskLevel = 'LOW';\n  if (cappedScore >= 50) {\n    riskLevel = 'HIGH';\n  } else if (cappedScore >= 20) {\n    riskLevel = 'MEDIUM';\n  } else {\n    riskLevel = 'LOW';\n  }\n  \n  return {\n    json: {\n      ...data,\n      all_signals: allSignals,\n      calculated_risk_score: cappedScore,\n      calculated_risk_level: riskLevel,\n      risk_categories: Array.from(distinctCategories)\n    }\n  };\n});"
+        },
+        "id": "risk-score-calculation",
+        "name": "🧮 Cumulative Risk Scoring",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1620, 340],
+        "notes": "CUMULATIVE SCORING ENGINE\nAggregates penalty weights, prevents double-counting, and enforces 100-point cap"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  let status = \"VERIFIED\";\n  let confidence = 0.98;\n  let riskLevel = \"LOW\";\n  let riskScore = 0;\n  const allIssues = [];\n  \n  if (!data.valid_schema) {\n    status = \"ERROR\";\n    confidence = 0.0;\n    riskLevel = \"HIGH\";\n    riskScore = 100;\n    allIssues.push(...(data.validation_errors || [\"Invalid risk input data structure\"]));\n  } else {\n    riskScore = data.calculated_risk_score || 0;\n    riskLevel = data.calculated_risk_level || 'LOW';\n    \n    // Populate issues from all signals\n    const signals = data.all_signals || [];\n    signals.forEach(s => {\n      allIssues.push(s.description);\n    });\n    \n    // Status determination for Risk Intelligence Agent:\n    // Passes as VERIFIED analysis engine\n    status = \"VERIFIED\";\n    confidence = 0.98;\n  }\n  \n  const agents = data.collected_agents || [];\n  \n  return {\n    json: {\n      agent: \"RISK_INTELLIGENCE_AGENT\",\n      status,\n      confidence,\n      evidence: {\n        agents_evaluated: agents.length,\n        risk_score: riskScore,\n        risk_level: riskLevel,\n        risk_categories: data.risk_categories || [],\n        risk_signals: data.all_signals || [],\n        failed_agents: data.failed_agents || [],\n        error_agents: data.error_agents || [],\n        not_executed_agents: data.not_executed_agents || [],\n        confidence_flags: data.confidence_flags || [],\n        scoring_version: \"RISK_RULES_V1\",\n        registry_source: \"ORCHESTRATOR_AGENT_RESULTS\"\n      },\n      issues: allIssues,\n      risk_level: riskLevel,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "risk-synthesis",
+        "name": "⚖️ Risk Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1900, 340],
+        "notes": "SYNTHESIS & REPORTING\nStructures evidence contract with transparent, auditable breakdown"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "risk-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2180, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "risk-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2440, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"RISK_INTELLIGENCE_AGENT\",\n    status: \"ERROR\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Risk intelligence agent encountered an unexpected execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Risk intelligence agent failed unexpectedly\"],\n    risk_level: \"HIGH\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "risk-error-fallback",
+        "name": "🛑 Risk Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 560],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: ⚠️ RISK INTELLIGENCE AGENT\nDeterministic risk aggregator across all child verification agents.\nIdentifies statutory, financial, forensic, experience, identity, and execution risk signals without arbitrary AI hallucination.",
+          "height": 160,
+          "width": 600,
+          "color": 7
+        },
+        "id": "risk-card-1",
+        "name": "Note - Card 1 Risk Agent",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [240, 60]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: ⚙️ DETERMINISTIC SCORING RULES\nMathematical scoring breakdown:\n• NOT_VERIFIED: +40 pts (DOMAIN_RISK)\n• SYSTEM_ERROR: +40 pts (SYSTEM_ERROR_RISK)\n• NOT_EXECUTED: +40 pts (EXECUTION_RISK)\n• HIGH residual: +30 pts | MEDIUM: +15 pts\n• Low confidence (<0.70): +20 pts | Medium: +10 pts\n• Score ceiling capped strictly at 100 points",
+          "height": 160,
+          "width": 650,
+          "color": 3
+        },
+        "id": "risk-card-2",
+        "name": "Note - Card 2 Scoring Rules",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1060, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Risk Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Risk Intelligence Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Risk Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Risk Input Validation": {
+        "main": [
+          [
+            {
+              "node": "📦 Agent Result Collector",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📦 Agent Result Collector": {
+        "main": [
+          [
+            {
+              "node": "🔍 Risk Signal Extraction",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Risk Signal Extraction": {
+        "main": [
+          [
+            {
+              "node": "📊 Confidence Risk Evaluation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📊 Confidence Risk Evaluation": {
+        "main": [
+          [
+            {
+              "node": "🧮 Cumulative Risk Scoring",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🧮 Cumulative Risk Scoring": {
+        "main": [
+          [
+            {
+              "node": "⚖️ Risk Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚖️ Risk Synthesis": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

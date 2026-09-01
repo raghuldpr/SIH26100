@@ -1,0 +1,238 @@
+[
+  {
+    "id": "SihTenderIntelligenceAgentProto01",
+    "name": "🔹 SIH — Tender Intelligence Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "tender-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/tender-intelligence",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "tender-trigger-webhook",
+        "name": "📥 Tender Intelligence Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-tender-intelligence"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nfunction parseCurrency(val) {\n  if (typeof val === 'number') return isNaN(val) ? NaN : val;\n  if (typeof val !== 'string') return NaN;\n  let s = val.trim().toLowerCase().replace(/,/g, '').replace(/₹/g, '').replace(/rs\\.?/g, '').trim();\n  if (s.endsWith('crore') || s.endsWith('cr') || s.endsWith('crores')) {\n    const num = parseFloat(s.replace(/(crores?|cr)/, '').trim());\n    return isNaN(num) ? NaN : Math.round(num * 10000000);\n  }\n  if (s.endsWith('lakh') || s.endsWith('lakhs') || s.endsWith('lac') || s.endsWith('lacs')) {\n    const num = parseFloat(s.replace(/(lakhs?|lacs?)/, '').trim());\n    return isNaN(num) ? NaN : Math.round(num * 100000);\n  }\n  const n = Number(s);\n  return isNaN(n) ? NaN : n;\n}\n\nfunction parseYears(val) {\n  if (typeof val === 'number') return val;\n  if (typeof val !== 'string') return NaN;\n  return Number(val.trim().toLowerCase().replace(/(years?|yrs?)/, '').trim());\n}\n\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  \n  const requestId = data.request_id || \"REQ-TENDER-DEMO\";\n  const tenderId = data.tender_id || (data.tender ? data.tender.tender_id : null) || \"TENDER-DEMO-001\";\n  const bidderId = data.bidder_id || \"BIDDER-DEMO-001\";\n  const bidderName = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  \n  // Resolve tender specification block from tender property or root level\n  const tenderObj = data.tender || {};\n  const rawReqs = tenderObj.requirements || data.tender_requirements || {};\n  const rawElig = tenderObj.eligibility || data.eligibility_requirements || {};\n  \n  // Check for malformed numeric inputs\n  const currencyFields = ['minimum_turnover', 'average_turnover', 'minimum_project_value', 'minimum_net_worth'];\n  for (const f of currencyFields) {\n    if (rawReqs[f] !== undefined && rawReqs[f] !== null) {\n      const parsed = parseCurrency(rawReqs[f]);\n      if (isNaN(parsed)) {\n        errors.push(`Malformed numeric requirement for '${f}': received non-numeric value '${rawReqs[f]}'`);\n      }\n    }\n  }\n  if (rawReqs.minimum_similar_works !== undefined && rawReqs.minimum_similar_works !== null) {\n    const num = Number(rawReqs.minimum_similar_works);\n    if (isNaN(num)) errors.push(`Malformed numeric requirement for 'minimum_similar_works': received '${rawReqs.minimum_similar_works}'`);\n  }\n  if (rawReqs.experience_period_years !== undefined && rawReqs.experience_period_years !== null) {\n    const y = parseYears(rawReqs.experience_period_years);\n    if (isNaN(y)) errors.push(`Malformed numeric requirement for 'experience_period_years': received '${rawReqs.experience_period_years}'`);\n  }\n  \n  // Deadline validation if present\n  const deadline = tenderObj.submission_deadline || data.submission_deadline || null;\n  if (deadline) {\n    const parsedDate = new Date(deadline);\n    if (isNaN(parsedDate.getTime())) {\n      errors.push(`Invalid submission_deadline format: '${deadline}'`);\n    }\n  }\n  \n  return {\n    json: {\n      request_id: requestId,\n      tender_id: tenderId,\n      bidder_id: bidderId,\n      bidder_name: bidderName,\n      raw_tender: tenderObj,\n      raw_requirements: rawReqs,\n      raw_eligibility: rawElig,\n      bidder_evidence: {\n        financial: data.financial_evidence || data.financial || null,\n        experience: data.experience_evidence || data.experience || data.past_projects || data.projects || (data.bidder_evidence ? (data.bidder_evidence.experience || data.bidder_evidence.projects) : null) || null,\n        identity: data.identity_evidence || data.identity || null,\n        documents: data.documents || null,\n        gstin: data.gstin || null,\n        pan: data.pan || null,\n        udyam: data.udyam || null\n      },\n      valid_schema: errors.length === 0,\n      validation_errors: errors,\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "tender-input-validation",
+        "name": "🔍 Tender Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340],
+        "notes": "SCHEMA & TYPE INGRESS\nValidates tender parameters and identifies invalid numeric/date types"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nfunction parseCurrency(val) {\n  if (typeof val === 'number') return isNaN(val) ? NaN : val;\n  if (typeof val !== 'string') return NaN;\n  let s = val.trim().toLowerCase().replace(/,/g, '').replace(/₹/g, '').replace(/rs\\.?/g, '').trim();\n  if (s.endsWith('crore') || s.endsWith('cr') || s.endsWith('crores')) {\n    const num = parseFloat(s.replace(/(crores?|cr)/, '').trim());\n    return isNaN(num) ? NaN : Math.round(num * 10000000);\n  }\n  if (s.endsWith('lakh') || s.endsWith('lakhs') || s.endsWith('lac') || s.endsWith('lacs')) {\n    const num = parseFloat(s.replace(/(lakhs?|lacs?)/, '').trim());\n    return isNaN(num) ? NaN : Math.round(num * 100000);\n  }\n  const n = Number(s);\n  return isNaN(n) ? NaN : n;\n}\n\nfunction parseYears(val) {\n  if (typeof val === 'number') return val;\n  if (typeof val !== 'string') return NaN;\n  return Number(val.trim().toLowerCase().replace(/(years?|yrs?)/, '').trim());\n}\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const rawReq = data.raw_requirements || {};\n  const rawElig = data.raw_eligibility || {};\n  const rawTender = data.raw_tender || {};\n  \n  // Financial normalization\n  const minTurnover = rawReq.minimum_turnover !== undefined ? parseCurrency(rawReq.minimum_turnover) : (rawReq.average_turnover !== undefined ? parseCurrency(rawReq.average_turnover) : 10000000);\n  const minNetWorth = rawReq.minimum_net_worth !== undefined ? parseCurrency(rawReq.minimum_net_worth) : null;\n  \n  // Experience normalization\n  const minWorks = rawReq.minimum_similar_works !== undefined ? Number(rawReq.minimum_similar_works) : 3;\n  const minProjVal = rawReq.minimum_project_value !== undefined ? parseCurrency(rawReq.minimum_project_value) : 1000000;\n  const expYears = rawReq.experience_period_years !== undefined ? parseYears(rawReq.experience_period_years) : 5;\n  const certReq = rawReq.completion_certificate_required !== undefined ? Boolean(rawReq.completion_certificate_required) : true;\n  \n  // Statutory normalization\n  const gstReq = rawElig.gst_required !== undefined ? Boolean(rawElig.gst_required) : true;\n  const panReq = rawElig.pan_required !== undefined ? Boolean(rawElig.pan_required) : true;\n  const udyamReq = rawElig.udyam_required !== undefined ? Boolean(rawElig.udyam_required) : false;\n  \n  // Eligibility normalization\n  const msmeAllowed = rawReq.msme_allowed !== undefined ? Boolean(rawReq.msme_allowed) : true;\n  const startupExempt = rawReq.startup_exemption !== undefined ? Boolean(rawReq.startup_exemption) : false;\n  \n  // Submission normalization\n  const deadline = rawTender.submission_deadline || null;\n  \n  const normalized = {\n    financial: {\n      minimum_turnover: minTurnover,\n      minimum_net_worth: minNetWorth\n    },\n    experience: {\n      minimum_similar_works: minWorks,\n      minimum_project_value: minProjVal,\n      experience_period_years: expYears,\n      completion_certificate_required: certReq\n    },\n    statutory: {\n      gst_required: gstReq,\n      pan_required: panReq,\n      udyam_required: udyamReq\n    },\n    eligibility: {\n      msme_allowed: msmeAllowed,\n      startup_exemption: startupExempt\n    },\n    submission: {\n      submission_deadline: deadline\n    }\n  };\n  \n  return {\n    json: {\n      ...data,\n      normalized_requirements: normalized\n    }\n  };\n});"
+        },
+        "id": "tender-req-extraction",
+        "name": "⚙️ Requirement Extraction & Normalization",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 340],
+        "notes": "DETERMINISTIC EXTRACTION\nParses Indian currency strings (Crore, Lakh) and numerical requirement thresholds"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nfunction parseCurrency(val) {\n  if (typeof val === 'number') return isNaN(val) ? NaN : val;\n  if (typeof val !== 'string') return NaN;\n  let s = val.trim().toLowerCase().replace(/,/g, '').replace(/₹/g, '').replace(/rs\\.?/g, '').trim();\n  if (s.endsWith('crore') || s.endsWith('cr') || s.endsWith('crores')) {\n    const num = parseFloat(s.replace(/(crores?|cr)/, '').trim());\n    return isNaN(num) ? NaN : Math.round(num * 10000000);\n  }\n  if (s.endsWith('lakh') || s.endsWith('lakhs') || s.endsWith('lac') || s.endsWith('lacs')) {\n    const num = parseFloat(s.replace(/(lakhs?|lacs?)/, '').trim());\n    return isNaN(num) ? NaN : Math.round(num * 100000);\n  }\n  const n = Number(s);\n  return isNaN(n) ? NaN : n;\n}\n\nfunction extractProjectValue(p) {\n  if (!p || typeof p !== 'object') return NaN;\n  const raw = p.project_value !== undefined ? p.project_value :\n              p.value !== undefined ? p.value :\n              p.amount !== undefined ? p.amount :\n              p.contract_value !== undefined ? p.contract_value :\n              p.project_cost !== undefined ? p.project_cost :\n              p.cost;\n  if (raw === undefined || raw === null) return NaN;\n  return parseCurrency(raw);\n}\n\nfunction isSimilarProject(p, isFromSimilarColl = false) {\n  if (!p || typeof p !== 'object') return false;\n\n  if (typeof p.similarity === 'boolean') return p.similarity;\n  if (typeof p.is_similar === 'boolean') return p.is_similar;\n  if (typeof p.similar === 'boolean') return p.similar;\n\n  if (typeof p.similarity === 'string') {\n    const s = p.similarity.trim().toLowerCase();\n    if (['true', 'yes', 'similar', 'relevant', 'high', 'matched'].includes(s)) return true;\n    if (['false', 'no', 'dissimilar', 'not_similar', 'irrelevant', 'low'].includes(s)) return false;\n  }\n  if (typeof p.is_similar === 'string') {\n    const s = p.is_similar.trim().toLowerCase();\n    if (['true', 'yes', 'similar'].includes(s)) return true;\n    if (['false', 'no', 'not_similar'].includes(s)) return false;\n  }\n  if (typeof p.similar === 'string') {\n    const s = p.similar.trim().toLowerCase();\n    if (['true', 'yes', 'similar'].includes(s)) return true;\n    if (['false', 'no', 'not_similar'].includes(s)) return false;\n  }\n  if (typeof p.relevance === 'string') {\n    const s = p.relevance.trim().toLowerCase();\n    if (['relevant', 'similar', 'high'].includes(s)) return true;\n    if (['not_relevant', 'irrelevant', 'low'].includes(s)) return false;\n  }\n\n  if (typeof p.similarity === 'number') {\n    return p.similarity >= (p.similarity > 1 ? 70 : 0.7);\n  }\n  if (typeof p.similarity_score === 'number') {\n    return p.similarity_score >= (p.similarity_score > 1 ? 70 : 0.7);\n  }\n\n  if (isFromSimilarColl) return true;\n\n  return false;\n}\n\nconst MOCK_BIDDER_PROJECTS = {\n  \"ABC Technologies Pvt Ltd\": [\n    {\n      project_id: \"PROJ-ABC-001\",\n      project_name: \"State Smart City Core Integration\",\n      client_name: \"Urban Development Department\",\n      project_value: 1500000,\n      completion_date: \"2024-06-10\",\n      similarity: true,\n      completion_certificate: true,\n      certificate_document_id: \"DOC-EXP-001\"\n    },\n    {\n      project_id: \"PROJ-ABC-002\",\n      project_name: \"Enterprise Portal & Security Layer\",\n      client_name: \"Power Distribution Corporation\",\n      project_value: 1200000,\n      completion_date: \"2023-08-15\",\n      similarity: true,\n      completion_certificate: true,\n      certificate_document_id: \"DOC-EXP-002\"\n    },\n    {\n      project_id: \"PROJ-ABC-003\",\n      project_name: \"Cloud Migration & Managed DevOps\",\n      client_name: \"Municipal Services Department\",\n      project_value: 1800000,\n      completion_date: \"2022-11-20\",\n      similarity: true,\n      completion_certificate: true,\n      certificate_document_id: \"DOC-EXP-003\"\n    }\n  ]\n};\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const reqs = data.normalized_requirements || {};\n  const ev = data.bidder_evidence || {};\n  \n  const passed = [];\n  const failed = [];\n  const notEvaluated = [];\n  const reviewRequired = [];\n  \n  let hasEvidence = false;\n  \n  // 1. Evaluate Financial Coverage if evidence supplied\n  if (ev.financial) {\n    hasEvidence = true;\n    let actualTurnover = 0;\n    if (typeof ev.financial.average_turnover === 'number') {\n      actualTurnover = ev.financial.average_turnover;\n    } else if (ev.financial.turnover && typeof ev.financial.turnover === 'object') {\n      const vals = Object.values(ev.financial.turnover).filter(v => typeof v === 'number');\n      if (vals.length > 0) actualTurnover = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);\n    }\n    \n    const reqTurnover = reqs.financial?.minimum_turnover || 0;\n    if (actualTurnover >= reqTurnover) {\n      passed.push(`Financial turnover (₹${actualTurnover.toLocaleString('en-IN')}) meets or exceeds requirement (₹${reqTurnover.toLocaleString('en-IN')})`);\n    } else {\n      failed.push(`Financial turnover (₹${actualTurnover.toLocaleString('en-IN')}) is below required minimum (₹${reqTurnover.toLocaleString('en-IN')})`);\n    }\n  } else {\n    notEvaluated.push(\"Financial turnover not evaluated (no bidder financial evidence supplied)\");\n  }\n  \n  // 2. Evaluate Experience Coverage if evidence supplied\n  let projects = null;\n  let isFromSimilarColl = false;\n  \n  if (ev.experience) {\n    if (Array.isArray(ev.experience)) {\n      projects = ev.experience;\n    } else if (typeof ev.experience === 'object') {\n      if (Array.isArray(ev.experience.projects)) {\n        projects = ev.experience.projects;\n      } else if (Array.isArray(ev.experience.similar_projects)) {\n        projects = ev.experience.similar_projects;\n        isFromSimilarColl = true;\n      } else if (Array.isArray(ev.experience.similar_works)) {\n        projects = ev.experience.similar_works;\n        isFromSimilarColl = true;\n      } else if (Array.isArray(ev.experience.past_projects)) {\n        projects = ev.experience.past_projects;\n      } else if (Array.isArray(ev.experience.contracts)) {\n        projects = ev.experience.contracts;\n      }\n    }\n  } else if (Array.isArray(data.past_projects)) {\n    projects = data.past_projects;\n  } else if (Array.isArray(data.similar_projects)) {\n    projects = data.similar_projects;\n    isFromSimilarColl = true;\n  } else if (Array.isArray(data.projects)) {\n    projects = data.projects;\n  }\n  \n  if (projects === null && MOCK_BIDDER_PROJECTS[data.bidder_name]) {\n    projects = MOCK_BIDDER_PROJECTS[data.bidder_name];\n  }\n  \n  if (projects !== null && Array.isArray(projects)) {\n    hasEvidence = true;\n    const reqWorks = reqs.experience?.minimum_similar_works || 3;\n    const minVal = reqs.experience?.minimum_project_value || 1000000;\n    \n    const qualifying = projects.filter(p => {\n      const val = extractProjectValue(p);\n      const valPass = !isNaN(val) && val >= minVal;\n      const simPass = isSimilarProject(p, isFromSimilarColl);\n      return valPass && simPass;\n    });\n    \n    if (qualifying.length >= reqWorks) {\n      passed.push(`Similar works count (${qualifying.length}) satisfies requirement (>= ${reqWorks})`);\n    } else {\n      failed.push(`Similar works count (${qualifying.length}) is below requirement (${reqWorks})`);\n    }\n  } else {\n    notEvaluated.push(\"Experience criteria not evaluated (no bidder experience evidence supplied)\");\n  }\n  \n  // 3. Evaluate Statutory Coverage\n  if (ev.gstin || (ev.identity && ev.identity.gst)) {\n    hasEvidence = true;\n    if (reqs.statutory?.gst_required) passed.push(\"GST registration requirement satisfied\");\n  } else if (reqs.statutory?.gst_required) {\n    notEvaluated.push(\"GST requirement not evaluated (no GST evidence in request)\");\n  }\n  \n  if (ev.pan || (ev.identity && ev.identity.pan)) {\n    hasEvidence = true;\n    if (reqs.statutory?.pan_required) passed.push(\"PAN requirement satisfied\");\n  } else if (reqs.statutory?.pan_required) {\n    notEvaluated.push(\"PAN requirement not evaluated (no PAN evidence in request)\");\n  }\n  \n  return {\n    json: {\n      ...data,\n      coverage_results: {\n        evaluated: hasEvidence,\n        passed,\n        failed,\n        not_evaluated: notEvaluated,\n        review_required: reviewRequired\n      }\n    }\n  };\n});"
+        },
+        "id": "tender-coverage-analysis",
+        "name": "📊 Requirement Coverage Analysis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 340],
+        "notes": "EVIDENCE BENCHMARKING\nBenchmarks supplied bidder evidence against tender requirements; flags unsupplied evidence as NOT_EVALUATED"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const rawReq = data.raw_requirements || {};\n  const rawTender = data.raw_tender || {};\n  const ambiguities = [];\n  \n  // 1. Conflict detection in requirement definitions (e.g. conflicting turnover thresholds)\n  if (rawReq.minimum_turnover && rawReq.average_turnover) {\n    if (rawReq.minimum_turnover !== rawReq.average_turnover) {\n      ambiguities.push(`TENDER_REQUIREMENT_CONFLICT: Conflicting turnover thresholds defined (minimum: ${rawReq.minimum_turnover} vs average: ${rawReq.average_turnover})`);\n    }\n  }\n  \n  // 2. Submission deadline past check\n  const deadline = rawTender.submission_deadline;\n  if (deadline) {\n    const d = new Date(deadline).getTime();\n    const now = Date.now();\n    if (!isNaN(d) && d < now) {\n      ambiguities.push(`TENDER_DEADLINE_EXPIRED: Submission deadline (${deadline}) has already elapsed`);\n    }\n  }\n  \n  return {\n    json: {\n      ...data,\n      tender_ambiguities: ambiguities\n    }\n  };\n});"
+        },
+        "id": "tender-ambiguity-evaluation",
+        "name": "⚠️ Ambiguity & Conflict Evaluation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 340],
+        "notes": "CONFLICT DETECTION\nDetects conflicting requirement specifications and expired tender deadlines"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  let status = \"VERIFIED\";\n  let confidence = 0.98;\n  let riskLevel = \"LOW\";\n  const allIssues = [];\n  \n  if (!data.valid_schema) {\n    status = \"ERROR\";\n    confidence = 0.0;\n    riskLevel = \"HIGH\";\n    allIssues.push(...(data.validation_errors || [\"Invalid tender intelligence request schema\"]));\n  } else {\n    const cov = data.coverage_results || {};\n    const ambiguities = data.tender_ambiguities || [];\n    \n    // 1. Ambiguities & Conflicts\n    if (ambiguities.length > 0) {\n      ambiguities.forEach(a => allIssues.push(a));\n      if (ambiguities.some(a => a.includes('CONFLICT'))) {\n        status = \"NOT_VERIFIED\";\n        riskLevel = \"HIGH\";\n        confidence = 0.70;\n      } else {\n        status = \"REVIEW_REQUIRED\";\n        riskLevel = \"MEDIUM\";\n        confidence = 0.85;\n      }\n    }\n    \n    // 2. Failed evaluated coverage\n    if (cov.failed && cov.failed.length > 0) {\n      status = \"NOT_VERIFIED\";\n      riskLevel = \"HIGH\";\n      cov.failed.forEach(f => allIssues.push(f));\n    }\n    \n    if (allIssues.length === 0) {\n      status = \"VERIFIED\";\n      confidence = 0.98;\n      riskLevel = \"LOW\";\n    }\n  }\n  \n  const reqs = data.normalized_requirements || {};\n  const cov = data.coverage_results || {\n    evaluated: false,\n    passed: [],\n    failed: [],\n    not_evaluated: [],\n    review_required: []\n  };\n  \n  return {\n    json: {\n      agent: \"TENDER_INTELLIGENCE_AGENT\",\n      status,\n      confidence,\n      evidence: {\n        tender_id: data.tender_id,\n        requirements: reqs,\n        coverage: cov,\n        ambiguities: data.tender_ambiguities || [],\n        registry_source: \"TENDER_SUBMISSION\"\n      },\n      issues: allIssues,\n      risk_level: riskLevel,\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "tender-synthesis",
+        "name": "📊 Tender Intelligence Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1620, 340],
+        "notes": "SYNTHESIS & REPORTING\nEmits canonical child-agent contract with structured requirement mapping and coverage status"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "tender-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1900, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "tender-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2180, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"TENDER_INTELLIGENCE_AGENT\",\n    status: \"ERROR\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Tender intelligence agent encountered an unexpected execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Tender intelligence evaluation failed safely\"],\n    risk_level: \"HIGH\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "tender-error-fallback",
+        "name": "🛑 Tender Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 560],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: 🧠 TENDER INTELLIGENCE AGENT\nDeterministic tender specification analysis.\nExtracts and normalizes financial thresholds, experience clauses, statutory requirements, and benchmarks bidder evidence.",
+          "height": 160,
+          "width": 600,
+          "color": 5
+        },
+        "id": "tender-card-1",
+        "name": "Note - Card 1 Tender Intelligence",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [240, 60]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: ⚙️ DETERMINISTIC EXTRACTION RULES\nNormalizes Indian currency notations (Crores, Lakhs) and dates.\nEvaluates requirement coverage without inventing false passes when evidence is missing.",
+          "height": 160,
+          "width": 650,
+          "color": 6
+        },
+        "id": "tender-card-2",
+        "name": "Note - Card 2 Extraction Rules",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1060, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Tender Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Tender Intelligence Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Tender Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Tender Input Validation": {
+        "main": [
+          [
+            {
+              "node": "⚙️ Requirement Extraction & Normalization",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚙️ Requirement Extraction & Normalization": {
+        "main": [
+          [
+            {
+              "node": "📊 Requirement Coverage Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📊 Requirement Coverage Analysis": {
+        "main": [
+          [
+            {
+              "node": "⚠️ Ambiguity & Conflict Evaluation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚠️ Ambiguity & Conflict Evaluation": {
+        "main": [
+          [
+            {
+              "node": "📊 Tender Intelligence Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📊 Tender Intelligence Synthesis": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

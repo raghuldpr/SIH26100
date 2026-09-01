@@ -1,0 +1,260 @@
+[
+  {
+    "id": "SihFinalComplianceAgentProto01",
+    "name": "🔹 SIH — Final Compliance Agent — Prototype",
+    "nodes": [
+      {
+        "parameters": {},
+        "id": "final-trigger-exec",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "position": [240, 260]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/final-compliance",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "final-trigger-webhook",
+        "name": "📥 Final Compliance Test Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 440],
+        "webhookId": "sih26100-final-compliance"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nconst DEFAULT_MANDATORY_AGENTS = [\n  \"GST_AGENT\",\n  \"PAN_AGENT\",\n  \"UDYAM_AGENT\",\n  \"FINANCIAL_AGENT\",\n  \"DOCUMENT_FORENSICS_AGENT\",\n  \"EXPERIENCE_AGENT\",\n  \"ENTITY_RESOLUTION_AGENT\",\n  \"RISK_INTELLIGENCE_AGENT\"\n];\n\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  \n  const requestId = data.request_id || \"REQ-FINAL-DEMO\";\n  const tenderId = data.tender_id || \"TENDER-FINAL-DEMO\";\n  const bidderId = data.bidder_id || \"BIDDER-FINAL-DEMO\";\n  const bidderName = (data.bidder_name || \"ABC Technologies Pvt Ltd\").toString().trim();\n  \n  let agentResults = data.agent_results;\n  if (agentResults !== undefined && agentResults !== null) {\n    if (!Array.isArray(agentResults)) {\n      errors.push(\"Field 'agent_results' must be an array\");\n      agentResults = [];\n    }\n  } else {\n    agentResults = [];\n  }\n  \n  const policy = data.compliance_policy || {};\n  let mandatory = policy.mandatory_agents;\n  if (!Array.isArray(mandatory) || mandatory.length === 0) {\n    // If policy doesn't specify mandatory agents, check if required_agents was provided in root\n    if (Array.isArray(data.required_agents) && data.required_agents.length > 0) {\n      mandatory = data.required_agents;\n    } else {\n      mandatory = DEFAULT_MANDATORY_AGENTS;\n    }\n  }\n  \n  const allowReview = policy.allow_review_status !== undefined ? Boolean(policy.allow_review_status) : false;\n  const maxReviewScore = typeof policy.maximum_review_risk_score === 'number' ? policy.maximum_review_risk_score : 49;\n  \n  const filteredMandatory = mandatory\n    .map(a => a.toUpperCase())\n    .filter(a => a !== 'FINAL_COMPLIANCE_AGENT');\n  \n  return {\n    json: {\n      request_id: requestId,\n      tender_id: tenderId,\n      bidder_id: bidderId,\n      bidder_name: bidderName,\n      agent_results: agentResults,\n      compliance_policy: {\n        mandatory_agents: filteredMandatory,\n        allow_review_status: allowReview,\n        maximum_review_risk_score: maxReviewScore\n      },\n      valid_schema: errors.length === 0,\n      validation_errors: errors,\n      raw_input: data\n    }\n  };\n});"
+        },
+        "id": "final-input-validation",
+        "name": "🔍 Final Compliance Input Validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [500, 340],
+        "notes": "SCHEMA & POLICY INGRESS\nValidates verification context and establishes compliance policy constraints"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const results = data.agent_results || [];\n  const mandatory = data.compliance_policy?.mandatory_agents || [];\n  \n  const resultMap = new Map();\n  results.forEach(r => {\n    if (r && r.agent) {\n      resultMap.set(r.agent.toUpperCase(), r);\n    }\n  });\n  \n  const missingMandatory = [];\n  const evaluatedList = [];\n  \n  mandatory.forEach(agentKey => {\n    if (resultMap.has(agentKey)) {\n      const res = resultMap.get(agentKey);\n      if (res.status === 'NOT_EXECUTED') {\n        missingMandatory.push(agentKey);\n      }\n      evaluatedList.push({\n        agent: agentKey,\n        ...res\n      });\n    } else {\n      missingMandatory.push(agentKey);\n      evaluatedList.push({\n        agent: agentKey,\n        status: 'NOT_EXECUTED',\n        confidence: 0.0,\n        risk_level: 'HIGH',\n        issues: [`Mandatory agent '${agentKey}' is missing from submission`]\n      });\n    }\n  });\n  \n  // Also preserve non-mandatory supplemental agent results if present\n  results.forEach(r => {\n    if (r && r.agent && !mandatory.includes(r.agent.toUpperCase())) {\n      evaluatedList.push(r);\n    }\n  });\n  \n  return {\n    json: {\n      ...data,\n      evaluated_agents: evaluatedList,\n      missing_mandatory_agents: missingMandatory,\n      coverage_complete: missingMandatory.length === 0\n    }\n  };\n});"
+        },
+        "id": "final-agent-coverage",
+        "name": "📋 Mandatory Agent Coverage Check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [780, 340],
+        "notes": "COVERAGE AUDIT\nEnsures all mandatory agents exist and no missing agent is treated as pass"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) return { json: data };\n  \n  const agents = data.evaluated_agents || [];\n  const mandatory = new Set(data.compliance_policy?.mandatory_agents || []);\n  \n  const passed = [];\n  const failed = [];\n  const errors = [];\n  const missing = [];\n  const lowConfidence = [];\n  const reviewItems = [];\n  \n  let riskScore = 0;\n  let riskLevel = 'LOW';\n  \n  agents.forEach(a => {\n    const aName = a.agent;\n    const isMandatory = mandatory.has(aName);\n    const status = (a.status || '').toUpperCase();\n    const issues = Array.isArray(a.issues) ? a.issues : (a.issues ? [String(a.issues)] : []);\n    \n    // Capture risk score from Risk Intelligence Agent if present\n    if (aName === 'RISK_INTELLIGENCE_AGENT') {\n      if (a.evidence && typeof a.evidence.risk_score === 'number') {\n        riskScore = a.evidence.risk_score;\n        riskLevel = a.evidence.risk_level || (riskScore >= 50 ? 'HIGH' : (riskScore >= 20 ? 'MEDIUM' : 'LOW'));\n      }\n    }\n    \n    if (isMandatory) {\n      if (status === 'VERIFIED') {\n        passed.push(aName);\n        // Check confidence\n        if (typeof a.confidence === 'number' && a.confidence < 0.70) {\n          lowConfidence.push({ agent: aName, confidence: a.confidence });\n          reviewItems.push(`${aName} returned low verification confidence (${a.confidence} < 0.70)`);\n        }\n      } else if (status === 'NOT_VERIFIED') {\n        failed.push({\n          agent: aName,\n          status: 'NOT_VERIFIED',\n          issues: issues.length > 0 ? issues : [`${aName} failed compliance criteria`]\n        });\n      } else if (status === 'ERROR') {\n        errors.push({\n          agent: aName,\n          status: 'ERROR',\n          issues: issues.length > 0 ? issues : [`${aName} encountered execution error`]\n        });\n        reviewItems.push(`${aName} encountered system error (ERROR)`);\n      } else if (status === 'NOT_EXECUTED') {\n        missing.push({\n          agent: aName,\n          status: 'NOT_EXECUTED',\n          issues: issues.length > 0 ? issues : [`${aName} was not executed`]\n        });\n        reviewItems.push(`Mandatory agent ${aName} was not executed`);\n      }\n    }\n  });\n  \n  return {\n    json: {\n      ...data,\n      passed_requirements: passed,\n      failed_requirements: failed,\n      error_requirements: errors,\n      missing_requirements: missing,\n      low_confidence_requirements: lowConfidence,\n      extracted_review_items: reviewItems,\n      effective_risk_score: riskScore,\n      effective_risk_level: riskLevel\n    }\n  };\n});"
+        },
+        "id": "final-status-evaluation",
+        "name": "⚖️ Agent Status Evaluation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1060, 340],
+        "notes": "AGENT STATUS SYNTHESIS\nSegments mandatory agents into passed, failed, errored, and missing cohorts"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  if (!data.valid_schema) {\n    return {\n      json: {\n        ...data,\n        final_decision: data.compliance_policy?.allow_review_status ? 'REVIEW_REQUIRED' : 'NOT_QUALIFIED',\n        decision_status: 'ERROR',\n        decision_basis: data.validation_errors || ['Malformed input structure']\n      }\n    };\n  }\n  \n  const policy = data.compliance_policy || {};\n  const allowReview = policy.allow_review_status;\n  \n  const failed = data.failed_requirements || [];\n  const errors = data.error_requirements || [];\n  const missing = data.missing_requirements || [];\n  const lowConf = data.low_confidence_requirements || [];\n  const riskScore = data.effective_risk_score || 0;\n  \n  let decision = 'QUALIFIED';\n  let status = 'QUALIFIED';\n  const basis = [];\n  \n  // RULE PRECEDENCE:\n  // 1. If any mandatory agent is NOT_VERIFIED -> definitive failure NOT_QUALIFIED\n  if (failed.length > 0) {\n    decision = 'NOT_QUALIFIED';\n    status = 'NOT_QUALIFIED';\n    failed.forEach(f => {\n      basis.push(`${f.agent} failed verification (NOT_VERIFIED): ${f.issues.join('; ')}`);\n    });\n  }\n  // 2. If any mandatory agent encountered an execution ERROR\n  else if (errors.length > 0) {\n    decision = allowReview ? 'REVIEW_REQUIRED' : 'NOT_QUALIFIED';\n    status = decision;\n    errors.forEach(e => {\n      basis.push(`${e.agent} encountered system error (ERROR): ${e.issues.join('; ')}`);\n    });\n  }\n  // 3. If any mandatory agent was NOT_EXECUTED or missing\n  else if (missing.length > 0) {\n    decision = allowReview ? 'REVIEW_REQUIRED' : 'NOT_QUALIFIED';\n    status = decision;\n    missing.forEach(m => {\n      basis.push(`Mandatory agent ${m.agent} was not executed`);\n    });\n  }\n  // 4. If Risk Score >= 50 points\n  else if (riskScore >= 50) {\n    decision = allowReview ? 'REVIEW_REQUIRED' : 'NOT_QUALIFIED';\n    status = decision;\n    basis.push(`Aggregated risk score (${riskScore}) exceeds safe threshold (>= 50)`);\n  }\n  // 5. If low confidence items exist and review is permitted\n  else if (lowConf.length > 0 && allowReview) {\n    decision = 'REVIEW_REQUIRED';\n    status = 'REVIEW_REQUIRED';\n    lowConf.forEach(c => {\n      basis.push(`${c.agent} verification confidence (${c.confidence}) is below standard threshold (0.70)`);\n    });\n  }\n  // 6. All mandatory requirements verified\n  else {\n    decision = 'QUALIFIED';\n    status = 'QUALIFIED';\n    basis.push('All mandatory verification agents returned VERIFIED');\n    basis.push(`Risk score (${riskScore}) is below blocking threshold`);\n  }\n  \n  return {\n    json: {\n      ...data,\n      final_decision: decision,\n      decision_status: status,\n      decision_basis: basis\n    }\n  };\n});"
+        },
+        "id": "final-compliance-rules",
+        "name": "⚙️ Compliance Rule Engine",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 340],
+        "notes": "DETERMINISTIC COMPLIANCE RULES\nApplies strict rule precedence: Not-Verified -> Error -> Missing -> Risk -> Review -> Qualified"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  const agents = data.evaluated_agents || [];\n  const mandatory = data.compliance_policy?.mandatory_agents || [];\n  \n  // Calculate deterministic confidence score\n  let minConfidence = 1.0;\n  agents.forEach(a => {\n    if (mandatory.includes(a.agent) && typeof a.confidence === 'number') {\n      if (a.confidence < minConfidence) minConfidence = a.confidence;\n    }\n  });\n  \n  let calculatedConfidence = minConfidence;\n  if (data.final_decision === 'REVIEW_REQUIRED') {\n    calculatedConfidence = Math.min(calculatedConfidence, 0.85);\n  } else if (data.decision_status === 'ERROR') {\n    calculatedConfidence = 0.0;\n  }\n  \n  // Risk level mapping\n  const score = data.effective_risk_score || 0;\n  let riskLevel = 'LOW';\n  if (score >= 50 || data.final_decision === 'NOT_QUALIFIED') {\n    riskLevel = 'HIGH';\n  } else if (score >= 20 || data.final_decision === 'REVIEW_REQUIRED') {\n    riskLevel = 'MEDIUM';\n  } else {\n    riskLevel = 'LOW';\n  }\n  \n  // Collect all issues across failed agents\n  const issues = [];\n  const failed = data.failed_requirements || [];\n  failed.forEach(f => {\n    f.issues.forEach(iss => issues.push(iss));\n  });\n  const errors = data.error_requirements || [];\n  errors.forEach(e => {\n    e.issues.forEach(iss => issues.push(iss));\n  });\n  \n  return {\n    json: {\n      ...data,\n      synthesized_confidence: Math.min(0.99, Math.max(0.0, Number(calculatedConfidence.toFixed(2)))),\n      synthesized_risk_level: riskLevel,\n      consolidated_issues: issues\n    }\n  };\n});"
+        },
+        "id": "final-evidence-synthesis",
+        "name": "📁 Evidence & Failure Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1620, 340],
+        "notes": "EVIDENCE HARMONIZATION\nConsolidates failure issues, maps risk level, and calculates deterministic confidence"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  const mandatory = data.compliance_policy?.mandatory_agents || [];\n  const passed = data.passed_requirements || [];\n  const failed = (data.failed_requirements || []).map(f => `${f.agent}: ${f.issues.join('; ')}`);\n  const reviewItems = data.extracted_review_items || [];\n  \n  return {\n    json: {\n      agent: \"FINAL_COMPLIANCE_AGENT\",\n      status: data.decision_status || data.final_decision || \"QUALIFIED\",\n      confidence: data.synthesized_confidence !== undefined ? data.synthesized_confidence : 0.99,\n      evidence: {\n        mandatory_agents: mandatory,\n        agents_evaluated: (data.evaluated_agents || []).length,\n        passed_requirements: passed,\n        failed_requirements: failed,\n        review_items: reviewItems,\n        risk_score: data.effective_risk_score || 0,\n        decision_basis: data.decision_basis || []\n      },\n      issues: data.consolidated_issues || [],\n      risk_level: data.synthesized_risk_level || \"LOW\",\n      final_decision: data.final_decision || \"QUALIFIED\",\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "final-decision-synthesis",
+        "name": "🏆 Final Decision Synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1900, 340],
+        "notes": "DECISION EMITTER\nProduces standardized contract with auditable decision basis"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: item.json\n}));"
+        },
+        "id": "final-standardized-result",
+        "name": "📤 Standardized Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2180, 340]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "final-respond-webhook",
+        "name": "📤 Return HTTP Response",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [2440, 340]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => ({\n  json: {\n    agent: \"FINAL_COMPLIANCE_AGENT\",\n    status: \"ERROR\",\n    confidence: 0.0,\n    evidence: {\n      error: \"Final compliance agent encountered an unexpected execution failure\",\n      fallback_mode: true\n    },\n    issues: [\"Final compliance evaluation failed safely\"],\n    risk_level: \"HIGH\",\n    final_decision: \"REVIEW_REQUIRED\",\n    timestamp: new Date().toISOString()\n  }\n}));"
+        },
+        "id": "final-error-fallback",
+        "name": "🛑 Final Error Fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1340, 560],
+        "notes": "RELIABILITY FALLBACK\nEnsures Master Orchestrator never crashes"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: 🏆 FINAL COMPLIANCE AGENT\nDeterministic compliance adjudication layer.\nEvaluates aggregated child agent outcomes against mandatory procurement compliance policy.",
+          "height": 160,
+          "width": 600,
+          "color": 4
+        },
+        "id": "final-card-1",
+        "name": "Note - Card 1 Final Compliance",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [240, 60]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: ⚙️ DETERMINISTIC DECISION RULES\nStrict rule hierarchy:\n1. Input malformation / invalid state -> ERROR\n2. Mandatory domain failure -> NOT_QUALIFIED\n3. Mandatory error or unexecuted -> REVIEW_REQUIRED / NOT_QUALIFIED\n4. Risk score >= 50 -> REVIEW_REQUIRED / NOT_QUALIFIED\n5. Low confidence (<0.70) -> REVIEW_REQUIRED\n6. All mandatory passed -> QUALIFIED",
+          "height": 160,
+          "width": 650,
+          "color": 2
+        },
+        "id": "final-card-2",
+        "name": "Note - Card 2 Decision Rules",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1060, 60]
+      }
+    ],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "🔍 Final Compliance Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📥 Final Compliance Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "🔍 Final Compliance Input Validation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Final Compliance Input Validation": {
+        "main": [
+          [
+            {
+              "node": "📋 Mandatory Agent Coverage Check",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📋 Mandatory Agent Coverage Check": {
+        "main": [
+          [
+            {
+              "node": "⚖️ Agent Status Evaluation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚖️ Agent Status Evaluation": {
+        "main": [
+          [
+            {
+              "node": "⚙️ Compliance Rule Engine",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚙️ Compliance Rule Engine": {
+        "main": [
+          [
+            {
+              "node": "📁 Evidence & Failure Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📁 Evidence & Failure Synthesis": {
+        "main": [
+          [
+            {
+              "node": "🏆 Final Decision Synthesis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏆 Final Decision Synthesis": {
+        "main": [
+          [
+            {
+              "node": "📤 Standardized Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Standardized Result": {
+        "main": [
+          [
+            {
+              "node": "📤 Return HTTP Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

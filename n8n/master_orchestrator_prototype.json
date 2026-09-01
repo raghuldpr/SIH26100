@@ -1,0 +1,1005 @@
+[
+  {
+    "id": "SihMasterOrchProto01",
+    "name": "🚀 SIH — MASTER ORCHESTRATOR — Prototype",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sih26100/bid-verification",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "node-webhook-input",
+        "name": "📥 BID VERIFICATION REQUEST",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [240, 360],
+        "webhookId": "sih26100-bid-verification"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json.body || item.json;\n  const errors = [];\n  if (!data.request_id) errors.push(\"Missing required field: request_id\");\n  if (!data.bidder_name) errors.push(\"Missing required field: bidder_name\");\n  if (!data.required_agents) {\n    errors.push(\"Missing required field: required_agents\");\n  } else if (!Array.isArray(data.required_agents)) {\n    errors.push(\"Field required_agents must be an array\");\n  }\n\n  return {\n    json: {\n      ...data,\n      valid: errors.length === 0,\n      validation_errors: errors\n    }\n  };\n});"
+        },
+        "id": "node-validate-request",
+        "name": "🔍 Validate Verification Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [480, 360]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "cond-valid",
+                "leftValue": "={{ $json.valid }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "node-if-valid",
+        "name": "✅ Request Valid?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [720, 360]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  return {\n    json: {\n      request_id: data.request_id || \"UNKNOWN\",\n      status: \"FAILED\",\n      decision: \"MANUAL_REVIEW\",\n      reason: \"Invalid verification request\",\n      issues: data.validation_errors || [\"Request validation failed\"],\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "node-invalid-response",
+        "name": "🛑 Invalid Request Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [720, 560]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.flatMap(item => {\n  const data = item.json;\n  const agents = Array.isArray(data.required_agents) ? data.required_agents : [];\n  \n  const groups = new Set();\n  agents.forEach(agent => {\n    const a = agent.toUpperCase();\n    if (a.includes(\"GST\") || a.includes(\"PAN\") || a.includes(\"UDYAM\") || a.includes(\"STATUTORY\") || a.includes(\"MCA\") || a.includes(\"EPFO\") || a.includes(\"ESIC\")) {\n      groups.add(\"STATUTORY\");\n    } else if (a.includes(\"FINANC\") || a.includes(\"TURNOVER\") || a.includes(\"BALANCE\") || a.includes(\"ITR\") || a.includes(\"CA\")) {\n      groups.add(\"FINANCIAL\");\n    } else if (a.includes(\"EXPERIENCE\") || a.includes(\"ELIGIBILITY\") || a.includes(\"PAST_PERFORMANCE\")) {\n      groups.add(\"EXPERIENCE\");\n    } else if (a.includes(\"FORENSIC\") || a.includes(\"DOC\") || a.includes(\"OCR\") || a.includes(\"TAMPER\")) {\n      groups.add(\"DOCUMENT_FORENSICS\");\n    } else if (a.includes(\"ENTITY\") || a.includes(\"RESOLUT\")) {\n      groups.add(\"ENTITY\");\n    } else if (a.includes(\"RISK\") || a.includes(\"BLACKLIST\") || a.includes(\"DEBAR\")) {\n      groups.add(\"RISK\");\n    } else if (a.includes(\"TENDER\")) {\n      groups.add(\"TENDER\");\n    }\n  });\n\n  if (groups.size === 0) {\n    groups.add(\"STATUTORY\");\n  }\n\n  const selectedGroups = Array.from(groups);\n  return selectedGroups.map(group => ({\n    json: {\n      ...data,\n      target_group: group,\n      selected_groups: selectedGroups,\n      required_agents: agents\n    }\n  }));\n});"
+        },
+        "id": "node-agent-selection",
+        "name": "🧠 Agent Selection Engine",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [980, 360]
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "rule-tender",
+                      "leftValue": "={{ $json.target_group }}",
+                      "rightValue": "TENDER",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "rule-statutory",
+                      "leftValue": "={{ $json.target_group }}",
+                      "rightValue": "STATUTORY",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "rule-financial",
+                      "leftValue": "={{ $json.target_group }}",
+                      "rightValue": "FINANCIAL",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "rule-experience",
+                      "leftValue": "={{ $json.target_group }}",
+                      "rightValue": "EXPERIENCE",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "rule-forensics",
+                      "leftValue": "={{ $json.target_group }}",
+                      "rightValue": "DOCUMENT_FORENSICS",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "rule-entity",
+                      "leftValue": "={{ $json.target_group }}",
+                      "rightValue": "ENTITY",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "rule-risk",
+                      "leftValue": "={{ $json.target_group }}",
+                      "rightValue": "RISK",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                }
+              }
+            ]
+          }
+        },
+        "id": "node-group-router",
+        "name": "🧭 Verification Group Router",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [1260, 360]
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihTenderIntelligenceAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-tender",
+        "name": "🧠 Tender Intelligence Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1600, 140],
+        "notes": "SPECIALIZED TENDER INTELLIGENCE CHILD WORKFLOW (SihTenderIntelligenceAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  return {\n    json: {\n      ...data,\n      statutory_group: \"STATUTORY\",\n      gstin: (data.gstin !== undefined && data.gstin !== null && data.gstin !== \"\") ? data.gstin : (data.documents && data.documents.gstin ? data.documents.gstin : \"27AABCU9603R1ZM\"),\n      pan: (data.pan !== undefined && data.pan !== null && data.pan !== \"\") ? data.pan : (data.documents && data.documents.pan ? data.documents.pan : \"AABCU9603R\"),\n      udyam: (data.udyam !== undefined && data.udyam !== null && data.udyam !== \"\") ? data.udyam : (data.documents && data.documents.udyam ? data.documents.udyam : \"UDYAM-TEST-001\"),\n      note: \"Dispatched to specialized statutory child workflows\"\n    }\n  };\n});"
+        },
+        "id": "node-child-statutory",
+        "name": "🏛 Statutory Verification Agent",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [1600, 280],
+        "notes": "🏛 STATUTORY GROUP COORDINATOR\nDispatches concurrently to GST, PAN, and Udyam specialized child agents"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihGstAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-gst",
+        "name": "🧾 GST Verification Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1880, 180],
+        "notes": "SPECIALIZED GST CHILD WORKFLOW (SihGstAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihPanAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-pan",
+        "name": "🪪 PAN Verification Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1880, 280],
+        "notes": "SPECIALIZED PAN CHILD WORKFLOW (SihPanAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihUdyamAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-udyam",
+        "name": "🏭 Udyam Verification Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1880, 380],
+        "notes": "SPECIALIZED UDYAM/MSME CHILD WORKFLOW (SihUdyamAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "mode": "append",
+          "numberInputs": 3
+        },
+        "id": "node-merge-statutory",
+        "name": "🔗 Merge Statutory Results",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [2140, 280],
+        "notes": "STATUTORY SYNCHRONIZER\nWaits for all three active statutory agents (GST, PAN, Udyam) and joins outputs without dropping"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihFinancialAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-financial",
+        "name": "💰 Financial Verification Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1600, 480],
+        "notes": "PROTOTYPE PLACEHOLDER — CHILD WORKFLOW TO BE IMPLEMENTED\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihExperienceAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-experience",
+        "name": "🏗 Experience & Eligibility Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1600, 620],
+        "notes": "SPECIALIZED EXPERIENCE & ELIGIBILITY CHILD WORKFLOW (SihExperienceAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihForensicsAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-forensics",
+        "name": "🔍 Document Forensics Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1600, 760],
+        "notes": "SPECIALIZED DOCUMENT FORENSICS CHILD WORKFLOW (SihForensicsAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihEntityResolutionAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-entity",
+        "name": "🔗 Entity Resolution Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1600, 900],
+        "notes": "SPECIALIZED ENTITY RESOLUTION CHILD WORKFLOW (SihEntityResolutionAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihRiskIntelligenceAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-risk",
+        "name": "⚠️ Risk Intelligence Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [1600, 1040],
+        "notes": "SPECIALIZED RISK INTELLIGENCE CHILD WORKFLOW (SihRiskIntelligenceAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "let initialReq = {};\nlet selectedGroups = [];\ntry {\n  const selectionData = $('🧠 Agent Selection Engine').first().json;\n  selectedGroups = selectionData.selected_groups || [];\n  initialReq = selectionData;\n} catch (e) {\n  try {\n    initialReq = $('🔍 Validate Verification Request').first().json || {};\n    selectedGroups = initialReq.selected_groups || [];\n  } catch (err) {\n    initialReq = {};\n  }\n}\n\nconst groupNodeMap = {\n  \"TENDER\": \"🧠 Tender Intelligence Agent\",\n  \"STATUTORY\": \"🔗 Merge Statutory Results\",\n  \"FINANCIAL\": \"💰 Financial Verification Agent\",\n  \"EXPERIENCE\": \"🏗 Experience & Eligibility Agent\",\n  \"DOCUMENT_FORENSICS\": \"🔍 Document Forensics Agent\",\n  \"ENTITY\": \"🔗 Entity Resolution Agent\",\n  \"RISK\": \"⚠️ Risk Intelligence Agent\"\n};\n\nconst defaultAgentForNode = {\n  \"🧠 Tender Intelligence Agent\": \"TENDER_INTELLIGENCE_AGENT\",\n  \"💰 Financial Verification Agent\": \"FINANCIAL_AGENT\",\n  \"🏗 Experience & Eligibility Agent\": \"EXPERIENCE_AGENT\",\n  \"🔍 Document Forensics Agent\": \"DOCUMENT_FORENSICS_AGENT\",\n  \"🔗 Entity Resolution Agent\": \"ENTITY_RESOLUTION_AGENT\",\n  \"⚠️ Risk Intelligence Agent\": \"RISK_INTELLIGENCE_AGENT\"\n};\n\nfunction resolveAgent(j, nodeName, group) {\n  if (j && j.agent) return j.agent;\n  if (nodeName === \"🔗 Merge Statutory Results\") {\n    if (j.gstin || (j.evidence && j.evidence.gstin)) return \"GST_AGENT\";\n    if (j.pan || (j.evidence && j.evidence.pan)) return \"PAN_AGENT\";\n    if (j.udyam || (j.evidence && j.evidence.udyam)) return \"UDYAM_AGENT\";\n    return \"STATUTORY_AGENT\";\n  }\n  return defaultAgentForNode[nodeName] || group;\n}\n\nlet allBranchesDone = true;\nconst collectedResults = [];\n\nfor (const group of selectedGroups) {\n  const nodeName = groupNodeMap[group];\n  if (!nodeName) continue;\n\n  try {\n    const nodeItems = $(nodeName).all();\n    if (!nodeItems || nodeItems.length === 0) {\n      allBranchesDone = false;\n      break;\n    }\n    \n    for (const item of nodeItems) {\n      const j = item.json || {};\n      if (j.agent && j.status && j.status !== \"ERROR\") {\n        collectedResults.push(j);\n      } else if (j.error || j.status === \"ERROR\" || j.status === \"FAILED\") {\n        const agentName = resolveAgent(j, nodeName, group);\n        collectedResults.push({\n          agent: agentName,\n          status: j.status || \"ERROR\",\n          confidence: typeof j.confidence === 'number' ? j.confidence : 0.0,\n          evidence: j.evidence || (j.error ? { error: j.error } : {}),\n          issues: Array.isArray(j.issues) ? j.issues : (j.issues ? [String(j.issues)] : [j.error ? (typeof j.error === 'string' ? j.error : (j.error.message || JSON.stringify(j.error))) : \"Child workflow execution failed\"]),\n          risk_level: \"HIGH\",\n          timestamp: j.timestamp || new Date().toISOString()\n        });\n      } else if (j.agent) {\n        collectedResults.push(j);\n      } else if (Array.isArray(j)) {\n        collectedResults.push(...j);\n      } else {\n        const agentName = resolveAgent(j, nodeName, group);\n        collectedResults.push({\n          agent: agentName,\n          status: \"ERROR\",\n          confidence: 0.0,\n          evidence: j,\n          issues: [j.message || \"Child workflow returned unrecognized output format\"],\n          risk_level: \"HIGH\",\n          timestamp: new Date().toISOString()\n        });\n      }\n    }\n  } catch (err) {\n    allBranchesDone = false;\n    break;\n  }\n}\n\nif (!allBranchesDone) {\n  return [];\n}\n\nconst reqAgents = initialReq.required_agents || [];\n\nreturn [{\n  json: {\n    request_id: initialReq.request_id || \"REQ-001\",\n    tender_id: initialReq.tender_id || \"TENDER-001\",\n    bidder_id: initialReq.bidder_id || \"BIDDER-001\",\n    bidder_name: initialReq.bidder_name || \"ABC Technologies Pvt Ltd\",\n    required_agents: reqAgents,\n    agent_results: collectedResults,\n    compliance_policy: initialReq.compliance_policy || {},\n    raw_input: initialReq\n  }\n}];"
+        },
+        "id": "node-merge-results",
+        "name": "📦 Collect Agent Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2400, 360],
+        "notes": "SYNCHRONIZATION BARRIER\nWaits for all required specialized verification agents, normalizes errors, and prepares evidence ingress for Final Compliance"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihFinalComplianceAgentProto01",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "id": "node-child-final",
+        "name": "🏆 Final Compliance Agent",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "position": [2660, 360],
+        "notes": "SPECIALIZED FINAL COMPLIANCE CHILD WORKFLOW (SihFinalComplianceAgentProto01)\n🔄 RETRY — MAX 3 ATTEMPTS\nExecutes after all specialized verification evidence has been synchronized",
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst rawResults = [];\n\ntry {\n  const collectData = $('📦 Collect Agent Results').first().json;\n  if (collectData && Array.isArray(collectData.agent_results)) {\n    rawResults.push(...collectData.agent_results);\n  }\n} catch (e) {\n  // fallback if prior node data not directly queried\n}\n\nfor (const item of items) {\n  if (item && item.json) {\n    const data = item.json;\n    if (Array.isArray(data.agent_results)) {\n      rawResults.push(...data.agent_results);\n    } else if (Array.isArray(data)) {\n      rawResults.push(...data);\n    } else {\n      rawResults.push(data);\n    }\n  }\n}\n\nlet initialReq = {};\ntry {\n  initialReq = $('🔍 Validate Verification Request').first().json || {};\n} catch (e) {\n  initialReq = rawResults[0] || {};\n}\n\nconst reqAgents = initialReq.required_agents || [\n  \"TENDER_INTELLIGENCE_AGENT\",\n  \"GST_AGENT\",\n  \"PAN_AGENT\",\n  \"UDYAM_AGENT\",\n  \"FINANCIAL_AGENT\",\n  \"EXPERIENCE_AGENT\",\n  \"DOCUMENT_FORENSICS_AGENT\",\n  \"ENTITY_RESOLUTION_AGENT\",\n  \"RISK_INTELLIGENCE_AGENT\",\n  \"FINAL_COMPLIANCE_AGENT\"\n];\n\nconst normalized = [];\nconst seenAgents = new Set();\n\nrawResults.forEach(r => {\n  if (r && r.agent && !seenAgents.has(r.agent)) {\n    seenAgents.add(r.agent);\n    normalized.push({ \n      agent: r.agent,\n      status: r.status || \"REVIEW\",\n      confidence: (typeof r.confidence === \"number\") ? r.confidence : 0.90,\n      evidence: r.evidence || {},\n      issues: Array.isArray(r.issues) ? r.issues : (r.issues ? [String(r.issues)] : []),\n      risk_level: r.risk_level || (r.status === \"NOT_VERIFIED\" || r.status === \"FAILED\" ? \"HIGH\" : (r.status === \"REVIEW\" ? \"MEDIUM\" : \"LOW\")),\n      timestamp: r.timestamp || new Date().toISOString()\n    });\n  } else if (r && r.error) {\n    const errAgent = r.agent || \"EXECUTION_ERROR\";\n    if (!seenAgents.has(errAgent)) {\n      seenAgents.add(errAgent);\n      normalized.push({\n        agent: errAgent,\n        status: \"ERROR\",\n        confidence: 0.0,\n        evidence: { error: r.error },\n        issues: [typeof r.error === \"string\" ? r.error : JSON.stringify(r.error)],\n        risk_level: \"HIGH\",\n        timestamp: new Date().toISOString()\n      });\n    }\n  }\n});\n\n// For any required agents not returned by child workflows, flag them explicitly\nreqAgents.forEach(agentName => {\n  if (!seenAgents.has(agentName)) {\n    normalized.push({\n      agent: agentName,\n      status: \"NOT_EXECUTED\",\n      confidence: 0.0,\n      evidence: {},\n      issues: [`Required agent ${agentName} was not executed or returned no result`],\n      risk_level: \"HIGH\",\n      timestamp: new Date().toISOString()\n    });\n  }\n});\n\nreturn [{\n  json: {\n    request_id: initialReq.request_id || \"REQ-001\",\n    tender_id: initialReq.tender_id || \"TENDER-001\",\n    bidder_id: initialReq.bidder_id || \"BIDDER-001\",\n    bidder_name: initialReq.bidder_name || \"ABC Technologies Pvt Ltd\",\n    normalized_results: normalized\n  }\n}];"
+        },
+        "id": "node-normalize-results",
+        "name": "📋 Normalize Agent Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [2920, 360]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  const results = data.normalized_results || [];\n\n  let riskScore = 0;\n  const warnings = [];\n  const failures = [];\n\n  results.forEach(agent => {\n    if (agent.status === \"FAILED\" || agent.status === \"NOT_VERIFIED\" || agent.status === \"ERROR\" || agent.status === \"NOT_EXECUTED\") {\n      riskScore += 40;\n      failures.push(`${agent.agent} failed verification (${agent.status}): ${(agent.issues || []).join(\", \") || \"Unresolved discrepancies\"}`);\n    } else if (agent.status === \"WARNING\" || agent.status === \"REVIEW\" || agent.risk_level === \"MEDIUM\") {\n      riskScore += 15;\n      warnings.push(`${agent.agent} reported review/warning condition: ${(agent.issues || []).join(\", \") || \"Discrepancy detected\"}`);\n    } else if (agent.risk_level === \"HIGH\") {\n      riskScore += 50;\n      failures.push(`${agent.agent} flagged high-risk anomalies`);\n    }\n  });\n\n  riskScore = Math.min(100, Math.max(0, riskScore));\n\n  let riskLevel = \"LOW\";\n  if (riskScore >= 60) {\n    riskLevel = \"HIGH\";\n  } else if (riskScore >= 30) {\n    riskLevel = \"MEDIUM\";\n  }\n\n  return {\n    json: {\n      ...data,\n      risk_score: riskScore,\n      risk_level: riskLevel,\n      risk_warnings: warnings,\n      risk_failures: failures\n    }\n  };\n});"
+        },
+        "id": "node-risk-aggregator",
+        "name": "⚠️ Prototype Risk Aggregator",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [3180, 360]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  const failures = data.risk_failures || [];\n  const warnings = data.risk_warnings || [];\n  const results = data.normalized_results || [];\n\n  let decision = \"QUALIFIED\";\n  const reasons = [];\n\n  if (results.length === 0) {\n    decision = \"MANUAL_REVIEW\";\n    reasons.push(\"Insufficient verification evidence received from child workflows\");\n  } else if (failures.length > 0) {\n    decision = \"NOT_QUALIFIED\";\n    reasons.push(...failures);\n  } else if (warnings.length > 0 || data.risk_level === \"MEDIUM\") {\n    decision = \"CONDITIONALLY_QUALIFIED\";\n    reasons.push(...warnings);\n  } else {\n    decision = \"QUALIFIED\";\n    reasons.push(\"All mandatory statutory and eligibility criteria successfully verified\");\n  }\n\n  return {\n    json: {\n      ...data,\n      decision,\n      reasons\n    }\n  };\n});"
+        },
+        "id": "node-compliance-decision",
+        "name": "🏆 Prototype Compliance Decision",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [3440, 360]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const data = item.json;\n  return {\n    json: {\n      verification_id: `VER-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random()*1000)}`,\n      request_id: data.request_id,\n      tender_id: data.tender_id,\n      bidder_id: data.bidder_id,\n      bidder_name: data.bidder_name,\n      status: \"COMPLETED\",\n      decision: data.decision,\n      risk_score: data.risk_score,\n      risk_level: data.risk_level,\n      agent_results: data.normalized_results || [],\n      failed_requirements: data.risk_failures || [],\n      missing_documents: [],\n      warnings: data.risk_warnings || [],\n      reasons: data.reasons || [],\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+        },
+        "id": "node-build-response",
+        "name": "📤 Build Final Verification Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [3700, 360]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "node-return-result",
+        "name": "📤 RETURN VERIFICATION RESULT",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [3960, 360]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nreturn [{\n  json: {\n    status: \"ERROR\",\n    decision: \"MANUAL_REVIEW\",\n    error: true,\n    message: \"Verification workflow encountered an error\",\n    timestamp: new Date().toISOString()\n  }\n}];"
+        },
+        "id": "node-error-handler",
+        "name": "🛑 Workflow Error Handler",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [760, 850],
+        "notes": "CENTRAL EXCEPTION CATCHER\nReturns standardized failure payload without internal leaks"
+      },
+      {
+        "parameters": {
+          "content": "## CARD 1: 🚀 MASTER ORCHESTRATOR\nCentral coordinator for SIH-26100 bid verification.\nCoordinates statutory, financial, forensic, and risk evaluations across distributed child agents.",
+          "height": 180,
+          "width": 650,
+          "color": 6
+        },
+        "id": "card-1-master-orchestrator",
+        "name": "Note - Card 1 Master Orchestrator",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1550, -120]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 2: 📥 INPUT & VALIDATION\nReceive and validate bidder verification requests.\nEnsures request_id, bidder_name, and required_agents schema integrity before routing.",
+          "height": 180,
+          "width": 620,
+          "color": 4
+        },
+        "id": "card-2-input-validation",
+        "name": "Note - Card 2 Input Validation",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [220, 100]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 3: 🧠 INTELLIGENT ROUTING\nDetermine which specialized verification workflows are required.\nDeterministic orchestration mapping required agents into 8 execution branches.",
+          "height": 180,
+          "width": 520,
+          "color": 5
+        },
+        "id": "card-3-intelligent-routing",
+        "name": "Note - Card 3 Intelligent Routing",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [950, 100]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 4: 🏛 STATUTORY\nGST • PAN • Udyam • MCA • EPFO • ESIC • Startup India • NSIC • BIS • DPIIT • DigiLocker\nActive specialized child workflows: 🧾 GST, 🪪 PAN, and 🏭 Udyam.",
+          "height": 140,
+          "width": 650,
+          "color": 5
+        },
+        "id": "card-4-statutory",
+        "name": "Note - Card 4 Statutory",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1550, 230]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 5: 💰 FINANCIAL\nTurnover • P&L • Balance Sheet • ITR • CA/UDIN\nValidates financial threshold ratios, working capital, and net worth requirements.",
+          "height": 100,
+          "width": 650,
+          "color": 7
+        },
+        "id": "card-5-financial",
+        "name": "Note - Card 5 Financial",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1550, 440]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 6: 🔍 DOCUMENT INTELLIGENCE\nAuthenticity • OCR • Metadata • Signatures • QR\nAnalyzes bid submission PDFs for tampering, signature validity, and certificate seals.",
+          "height": 100,
+          "width": 650,
+          "color": 4
+        },
+        "id": "card-6-document-intelligence",
+        "name": "Note - Card 6 Document Intelligence",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [1550, 720]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 7: 🔗 ENTITY RESOLUTION\nCross-document legal entity consistency.\nReconciles bidder name, CIN, PAN, and address variations across all filings.",
+          "height": 180,
+          "width": 380,
+          "color": 3
+        },
+        "id": "card-7-entity-resolution",
+        "name": "Note - Card 7 Entity Resolution",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [2550, 100]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 8: ⚠️ RISK INTELLIGENCE\nBlacklisting • Debarment • Risk scoring.\nEvaluates debarment registers, adverse news, and calculates weighted risk scores.",
+          "height": 180,
+          "width": 380,
+          "color": 2
+        },
+        "id": "card-8-risk-intelligence",
+        "name": "Note - Card 8 Risk Intelligence",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [2980, 100]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 9: 🏆 FINAL DECISION\nCompliance • Qualification • Risk • Evidence.\nSynthesizes findings into QUALIFIED, NOT_QUALIFIED, or CONDITIONALLY_QUALIFIED.",
+          "height": 180,
+          "width": 420,
+          "color": 7
+        },
+        "id": "card-9-final-decision",
+        "name": "Note - Card 9 Final Decision",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [3420, 100]
+      },
+      {
+        "parameters": {
+          "content": "## CARD 10: 🔄 RELIABILITY\nRetry • Error handling • Fallback • Manual Review.\nConfigured with max 3 retry attempts (2000ms delay) and non-blocking failure fallbacks.",
+          "height": 180,
+          "width": 620,
+          "color": 1
+        },
+        "id": "card-10-reliability",
+        "name": "Note - Card 10 Reliability",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [720, 750]
+      }
+    ],
+    "connections": {
+      "📥 BID VERIFICATION REQUEST": {
+        "main": [
+          [
+            {
+              "node": "🔍 Validate Verification Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Validate Verification Request": {
+        "main": [
+          [
+            {
+              "node": "✅ Request Valid?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "✅ Request Valid?": {
+        "main": [
+          [
+            {
+              "node": "🧠 Agent Selection Engine",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "🛑 Invalid Request Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🛑 Invalid Request Response": {
+        "main": [
+          [
+            {
+              "node": "📤 RETURN VERIFICATION RESULT",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🧠 Agent Selection Engine": {
+        "main": [
+          [
+            {
+              "node": "🧭 Verification Group Router",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🧭 Verification Group Router": {
+        "main": [
+          [
+            {
+              "node": "🧠 Tender Intelligence Agent",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "🏛 Statutory Verification Agent",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "💰 Financial Verification Agent",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "🏗 Experience & Eligibility Agent",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "🔍 Document Forensics Agent",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "🔗 Entity Resolution Agent",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "⚠️ Risk Intelligence Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🧠 Tender Intelligence Agent": {
+        "main": [
+          [
+            {
+              "node": "📦 Collect Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏛 Statutory Verification Agent": {
+        "main": [
+          [
+            {
+              "node": "🧾 GST Verification Agent",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "🪪 PAN Verification Agent",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "🏭 Udyam Verification Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🧾 GST Verification Agent": {
+        "main": [
+          [
+            {
+              "node": "🔗 Merge Statutory Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🪪 PAN Verification Agent": {
+        "main": [
+          [
+            {
+              "node": "🔗 Merge Statutory Results",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "🏭 Udyam Verification Agent": {
+        "main": [
+          [
+            {
+              "node": "🔗 Merge Statutory Results",
+              "type": "main",
+              "index": 2
+            }
+          ]
+        ]
+      },
+      "🔗 Merge Statutory Results": {
+        "main": [
+          [
+            {
+              "node": "📦 Collect Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "💰 Financial Verification Agent": {
+        "main": [
+          [
+            {
+              "node": "📦 Collect Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏗 Experience & Eligibility Agent": {
+        "main": [
+          [
+            {
+              "node": "📦 Collect Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔍 Document Forensics Agent": {
+        "main": [
+          [
+            {
+              "node": "📦 Collect Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🔗 Entity Resolution Agent": {
+        "main": [
+          [
+            {
+              "node": "📦 Collect Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚠️ Risk Intelligence Agent": {
+        "main": [
+          [
+            {
+              "node": "📦 Collect Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📦 Collect Agent Results": {
+        "main": [
+          [
+            {
+              "node": "🏆 Final Compliance Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏆 Final Compliance Agent": {
+        "main": [
+          [
+            {
+              "node": "📋 Normalize Agent Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📋 Normalize Agent Results": {
+        "main": [
+          [
+            {
+              "node": "⚠️ Prototype Risk Aggregator",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "⚠️ Prototype Risk Aggregator": {
+        "main": [
+          [
+            {
+              "node": "🏆 Prototype Compliance Decision",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🏆 Prototype Compliance Decision": {
+        "main": [
+          [
+            {
+              "node": "📤 Build Final Verification Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "📤 Build Final Verification Response": {
+        "main": [
+          [
+            {
+              "node": "📤 RETURN VERIFICATION RESULT",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "🛑 Workflow Error Handler": {
+        "main": [
+          [
+            {
+              "node": "📤 RETURN VERIFICATION RESULT",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    }
+  }
+]

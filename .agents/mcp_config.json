@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "n8n": {
+      "serverUrl": "http://localhost:5678/mcp-server/http"
+    }
+  }
+}
