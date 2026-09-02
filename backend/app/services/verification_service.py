@@ -222,6 +222,10 @@ class VerificationService:
 
             doc_type_val = doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type)
             fname = getattr(doc, "original_filename", None) or getattr(doc, "file_name", None) or f"doc_{doc.id}.pdf"
+            ext_data = doc.extracted_data or {}
+            meta_data = ext_data.get("metadata", {}) if isinstance(ext_data, dict) else {}
+            ocr_text_val = getattr(doc, "extracted_text", None) or (ext_data.get("ocr_text") if isinstance(ext_data, dict) else None)
+            page_cnt = ext_data.get("page_count") or (meta_data.get("page_count") if isinstance(meta_data, dict) else None) or 1
             documents_list.append(
                 DocumentForensicInput(
                     document_id=str(doc.id),
@@ -231,8 +235,11 @@ class VerificationService:
                     file_size=doc.file_size or 0,
                     storage_path=doc.storage_path,
                     sha256=getattr(doc, "sha256", None),
-                    ocr_text=getattr(doc, "extracted_text", None),
-                    extracted_data=doc.extracted_data or {},
+                    pdf_readable=True,
+                    page_count=int(page_cnt),
+                    metadata=meta_data,
+                    ocr_text=ocr_text_val,
+                    extracted_data=ext_data,
                 )
             )
 

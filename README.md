@@ -1,121 +1,154 @@
-# SIH26100
+# SIH26100 — Quixotic Bid Compliance Platform
 
-> **AI-powered Bid Compliance Verification Platform for GeM Procurement**
+> **Enterprise-Grade AI & Deterministic Multi-Agent Bid Compliance Verification Platform for GeM Procurement**
 
 ---
 
-## 📌 Project Overview
-**Current Milestone**: `Phase 09 — Compliance Rule Engine`
+## 📌 Platform Overview
 
-SIH26100 is an enterprise-grade, deterministic bid compliance and automated procurement verification platform designed for GeM (Government e-Marketplace) tenders. It combines upstream AI-powered intelligence for document interpretation with a strictly deterministic, auditable, and rule-based compliance engine.
+**SIH-26100** is an automated procurement bid compliance and verification system designed for the Government e-Marketplace (GeM). It integrates deterministic document parsing, structured parameter extraction, an immutable audit trail, and an n8n-orchestrated 10-agent verification workflow powered by server-side Groq LLaMA-3.3-70B minimal semantic fallback.
 
 ### Core Architectural Principle
-> **"AI interprets requirements upstream. Deterministic Python rules evaluate them downstream."**
->
-> The compliance rule engine operates independently of LLMs (no external AI calls during evaluation). Every evaluation decision produces an explicit, human-readable reason suitable for legal and administrative procurement audit trails.
+> **"Deterministic rules, OCR, and document forensics evaluate compliance first. AI/LLMs are strictly restricted upstream for ambiguous clause interpretation via a hardened AI Gateway."**
 
 ---
 
-## 🚀 Capabilities
+## 🏛️ System Architecture
 
-- **Phase 01 — Foundation**: FastAPI modular backend, React + TypeScript + Vite frontend, Docker Compose orchestration.
-- **Phase 02 & 03 — Identity & Access**: JWT authentication, RBAC (Bidder, Evaluator, Admin), secure password hashing.
-- **Phase 04 & 05 — Tenders & Bidder Management**: Tender RFP lifecycle, GeM bid management, multi-bidder registration.
-- **Phase 06 & 07 — Document Engine & Processing**: OCR pipeline (PaddleOCR), PDF extraction, document classification, entity extraction, Supabase storage.
-- **Phase 08 — Tender Intelligence & Requirement Normalization**: Clause extraction, currency & time normalization, structured requirement definitions.
-- **Phase 09 — Deterministic Compliance Rule Engine**:
-  - **Numeric Evaluator**: Exact, inequality, and interval comparisons (`EQUAL`, `NOT_EQUAL`, `GREATER_THAN`, `GREATER_THAN_OR_EQUAL`, `LESS_THAN`, `LESS_THAN_OR_EQUAL`, `MINIMUM`, `MAXIMUM`, `BETWEEN`) with high-precision `Decimal` financial coercion.
-  - **Boolean Evaluator**: Strict boolean evaluation with affirmative/negative token normalization.
-  - **Date Range Evaluator**: Chronological order, tender deadline validity, and Financial Year intervals (`DATE_EQUAL`, `DATE_BEFORE`, `DATE_AFTER`, `DATE_BETWEEN`, etc.).
-  - **Three-Valued Logical Evaluator**: Full Kleene logic for `AND` / `OR` combinations, short-circuiting, and arbitrary nested rule trees (e.g., `A AND (B OR C)`).
-  - **Conditional Evaluator**: Deterministic procedural dependencies (`IF <condition> THEN <consequence>`).
-  - **Mandatory Document Evaluator**: Presence, candidate matching, verified status confirmation, definitely absent failure, and statutory exemption waivers.
-  - **Experience Evaluator**: Cumulative experience years, contract count thresholds, category relevance verification, and completion status filters.
-  - **Generic Exemption Mechanism**: Declarative exemption rules (e.g., DPIIT Startup waiver, MSME turnover exemptions) applied without hardcoded tender logic.
-  - **Database Integration & Immutability**: PostgreSQL / SQLAlchemy models (`requirements`, `bidder_evidence`, `compliance_results`). Historical evaluations are **never overwritten** to maintain an unbroken audit trail.
-  - **Service Architecture**: `API (/api/v1/compliance) ↓ ComplianceService ↓ Rule Engine ↓ PostgreSQL`.
+```
+[Web Browser Client]
+       │
+       ▼ (HTTPS / Port 5173 / Port 80)
+[React + TypeScript + Vite Frontend] (Stitch Design System, Tailwind CSS)
+       │
+       ▼ (REST API / Bearer JWT / Port 8000)
+[FastAPI Backend Application]
+       │
+       ├─► [PostgreSQL / Supabase Database] (SQLAlchemy 2.0 + Connection Pooling)
+       ├─► [Supabase Storage / Local Volume] (Document Vault & Pre-Signed Signed URLs)
+       ├─► [Document Engine Microservice (Port 8001)] (PyMuPDF / Tesseract / OpenCV)
+       ├─► [AI Gateway] ──► [Groq LLaMA-3.3-70B] (Server-side minimal semantic fallback)
+       └─► [n8n Multi-Agent Orchestrator (Port 5678)]
+                 │
+                 ├─► 1. Tender Intelligence Agent
+                 ├─► 2. GST Verification Agent
+                 ├─► 3. PAN Verification Agent
+                 ├─► 4. Udyam Verification Agent
+                 ├─► 5. Financial Verification Agent
+                 ├─► 6. Experience Eligibility Agent
+                 ├─► 7. Document Forensics Agent
+                 ├─► 8. Entity Resolution Agent
+                 ├─► 9. Risk Intelligence Agent
+                 └─► 10. Final Compliance Aggregation Agent
+```
 
 ---
 
-## 📂 Project Structure
+## 📂 Repository Structure
 
 ```
 SIH26100/
-├── backend/
-│   ├── alembic/                      # Database migrations
-│   │   └── versions/                 # Revision scripts (including Phase 08 & 09 migrations)
+├── backend/                  # FastAPI REST Backend application
+│   ├── alembic/              # Database migration versions
 │   ├── app/
-│   │   ├── api/v1/endpoints/         # REST API routers (compliance, tenders, bidders, etc.)
-│   │   ├── compliance/               # Deterministic Compliance Rule Engine
-│   │   │   ├── boolean.py            # Boolean evaluator
-│   │   │   ├── conditional.py        # IF/THEN evaluator
-│   │   │   ├── dates.py              # Date & timeline evaluator
-│   │   │   ├── documents.py          # Document presence & verification evaluator
-│   │   │   ├── engine.py             # Central ComplianceEngine coordinator
-│   │   │   ├── enums.py              # Statuses, operators, and rule types
-│   │   │   ├── exemptions.py         # Exemption mechanism
-│   │   │   ├── experience.py         # Track record & contract evaluator
-│   │   │   ├── logical.py            # Three-valued AND/OR evaluator
-│   │   │   ├── models.py             # Pydantic domain models
-│   │   │   └── numeric.py            # Numeric & financial evaluator
-│   │   ├── crud/                     # SQLAlchemy data access objects
-│   │   ├── models/                   # Declarative database models (compliance, tenders, bidders)
-│   │   ├── schemas/                  # Pydantic API schemas
-│   │   └── services/                 # Business logic & orchestration services
-│   │       └── compliance_service.py # Compliance evaluation service
-│   ├── tests/
-│   │   ├── compliance/               # 354+ compliance engine unit & integration tests
-│   │   └── ...                       # Document, tender, auth, and intelligence test suites
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/                         # React + TypeScript Vite frontend
-├── docs/                             # Documentation and guides
-├── docker-compose.yml
+│   │   ├── api/v1/           # API endpoints (auth, tenders, bidders, documents, verification, health)
+│   │   ├── compliance/       # Deterministic rule evaluation engine
+│   │   ├── core/             # Security, database, storage, validation
+│   │   ├── crud/             # Database access operations
+│   │   ├── models/           # SQLAlchemy ORM models
+│   │   ├── schemas/          # Pydantic validation schemas
+│   │   └── services/         # Verification aggregator, n8n client, AI Gateway
+│   ├── tests/                # Unit, integration, Phase 11 & Phase 12 test suites
+│   ├── Dockerfile            # Backend container specification
+│   └── requirements.txt      # Python dependencies
+├── document-engine/          # High-throughput OCR & document extraction microservice
+│   ├── app/                  # Classifiers, extractors, OCR pipeline
+│   ├── tests/                # 90 automated document engine tests
+│   ├── Dockerfile            # Document Engine container with Tesseract OCR
+│   └── requirements.txt      # OCR & extraction dependencies
+├── frontend/                 # React 18 + TypeScript + Vite + Tailwind CSS
+│   ├── src/
+│   │   ├── api/              # Typed API clients (auth, tenders, bidders, documents, verification, health)
+│   │   ├── components/       # Stitch UI primitives, tender, bidder, verification, document components
+│   │   ├── context/          # AuthContext with Bearer JWT lifecycle
+│   │   ├── layouts/          # AppLayout, Sidebar, Header
+│   │   ├── pages/            # Dashboard, Tenders, Bidders, Documents, Verification, Reports, Settings
+│   │   ├── routes/           # ProtectedRoute, PublicRoute, AppRoutes
+│   │   └── types/            # TypeScript domain interfaces
+│   ├── Dockerfile            # Frontend container specification
+│   └── package.json          # Node dependencies
+├── n8n/                      # 11 Production Multi-Agent workflow definitions (JSON)
+├── docker-compose.yml        # Production multi-container orchestration
+├── .env.example              # Master environment configuration template
 └── README.md
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## ⚙️ Environment Configuration
 
-- **Backend**: Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.0, PostgreSQL (Supabase), Alembic
-- **Document Processing**: PyMuPDF, PaddleOCR, Pillow
-- **Frontend**: React 18, TypeScript, Vite
-- **Testing**: pytest (627+ automated unit, integration, and database tests)
-- **Containerization**: Docker, Docker Compose
+Copy `.env.example` to `.env` in the repository root and configure your credentials:
+
+```bash
+cp .env.example .env
+```
+
+### Essential Environment Variables
+
+| Variable | Description | Default / Example |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | PostgreSQL / Supabase connection string | `postgresql://postgres:postgres@localhost:5432/sih26100_db` |
+| `JWT_SECRET_KEY` | Cryptographic secret for signing Bearer JWTs | `change-this-to-a-secure-random-256-bit-key` |
+| `SUPABASE_URL` | Supabase project URL | `https://[PROJECT-REF].supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY`| Supabase service role key | `[YOUR-SERVICE-ROLE-KEY]` |
+| `GROQ_API_KEY` | Server-side Groq API key for AI Gateway | `gsk_[YOUR-GROQ-API-KEY]` |
+| `GROQ_MODEL` | Server-side LLM model | `llama-3.3-70b-versatile` |
+| `N8N_WEBHOOK_URL` | n8n verification webhook dispatch URL | `http://localhost:5678/webhook/sih26100/bid-verification` |
+| `DOCUMENT_ENGINE_URL` | Internal Document Engine microservice URL | `http://localhost:8001` |
+| `VITE_API_BASE_URL` | Public frontend API entry point | `http://localhost:8000/api/v1` |
 
 ---
 
-## 💻 Local Setup & Execution
+## 🚀 Running with Docker Compose
 
-### 1. Backend Setup
+Start the complete multi-service stack with a single command:
+
+```bash
+docker compose up -d
+```
+
+### Services Started:
+- **Frontend**: [http://localhost:5173](http://localhost:5173)
+- **FastAPI Backend**: [http://localhost:8000](http://localhost:8000) (Interactive Docs: `/docs`)
+- **Document Engine**: [http://localhost:8001](http://localhost:8001) (Health: `/health`)
+- **n8n Orchestration** *(optional profile)*: `docker compose --profile orchestration up -d` ([http://localhost:5678](http://localhost:5678))
+
+---
+
+## 💻 Local Development Execution
+
+### 1. Backend Application
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv .venv
-
-# Activate virtual environment
-# Windows (PowerShell):
-.venv\Scripts\Activate.ps1
-# Linux/macOS:
-source .venv/bin/activate
-
-# Install dependencies
+# Activate virtualenv (Windows: .venv\Scripts\Activate.ps1 | Linux/macOS: source .venv/bin/activate)
 pip install -r requirements.txt
-
-# Run database migrations
 alembic upgrade head
-
-# Start development server
 uvicorn app.main:app --reload --port 8000
 ```
 
-- **Interactive API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Alternative Redoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+### 2. Document Engine Microservice
 
-### 2. Frontend Setup
+```bash
+cd document-engine
+python -m venv .venv
+# Activate virtualenv
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8001
+```
+
+### 3. Frontend Application
 
 ```bash
 cd frontend
@@ -123,48 +156,29 @@ npm install
 npm run dev
 ```
 
-- **Frontend Application**: [http://localhost:5173](http://localhost:5173)
-
 ---
 
-## 🧪 Testing
+## 🧪 Automated Testing & Verification
 
-Run the comprehensive test suite:
+Run the full automated test suite:
 
 ```bash
-cd backend
+# Phase 11 Regression Suite (83 tests)
+$env:PYTHONPATH="backend;document-engine;."; python -m unittest discover -s backend/tests -p "test_*_phase11.py"
 
-# Run Phase 09 compliance engine tests (354 tests)
-pytest tests/compliance/ -v
+# Phase 12 Multi-Agent Verification Suite (115 tests)
+$env:PYTHONPATH="backend;document-engine;."; python -m unittest discover -s backend/tests -p "test_phase12_*.py"
 
-# Run full repository test suite (627 tests)
-pytest tests/ -q
+# Frontend Production Build (TypeScript + Vite)
+npm run build
 ```
 
 ---
 
-## 📜 Compliance Engine Contract Scenarios
+## 🔒 Security & Provenance Assurances
 
-| Scenario | Requirement | Evidence | Evaluation Result |
-| :--- | :--- | :--- | :--- |
-| **1. Turnover Above Threshold** | Min turnover ₹15,00,000 | ₹21,00,000 | **`PASS`** |
-| **2. Turnover Below Threshold** | Min turnover ₹15,00,000 | ₹8,00,000 | **`FAIL`** |
-| **3. Missing Evidence** | Min turnover ₹15,00,000 | Evidence missing / null | **`REVIEW`** |
-| **4. Conjunction (Both Pass)** | Turnover $\ge$ 15L **AND** Exp $\ge$ 5 yrs | Both PASS | **`PASS`** |
-| **5. Conjunction (One Fails)** | Turnover $\ge$ 15L **AND** Exp $\ge$ 5 yrs | Exp FAIL (< 5 yrs) | **`FAIL`** |
-| **6. Disjunction (Pass + Fail)** | ISO 9001 **OR** ISO 14001 | ISO 9001 FAIL, ISO 14001 PASS | **`PASS`** |
-| **7. Conditional Requirement** | IF OEM == true THEN Auth == mandatory | OEM = true, Auth = missing | **`FAIL`** |
-| **8. Statutory Exemption** | Turnover requirement + Startup waiver | Startup == true | **`EXEMPT`** (passes externally) |
-| **9. Uncertain Relevance** | Experience in relevant category | Relevance flag = UNCERTAIN | **`REVIEW`** (no LLM guessing) |
-
----
-
-## 🔒 Auditability & Immutability
-
-- Every evaluation outputs:
-  - `status`: `PASS`, `FAIL`, `REVIEW`, `EXEMPT`, or `NOT_APPLICABLE`
-  - `reason`: Deterministic human-readable explanation
-  - `evidence_reference`: File name, page, or evidence identifier
-  - `actual_value` & `required_value`: Audit snapshots stored in JSONB
-  - `evaluated_at`: High-resolution evaluation timestamp
-- Historical records in `compliance_results` are strictly immutable and never overwritten.
+1. **Deterministic Processing First**: No LLM calls during document extraction or compliance rules evaluation.
+2. **Server-Side AI Gateway**: Groq keys are never exposed to client browsers or bundled in frontend assets.
+3. **Cryptographic SHA-256 Hashes**: Every document artifact and verification response outputs an immutable anti-tamper digest.
+4. **Pre-Signed Storage URLs**: Documents are downloaded strictly through time-limited pre-signed URLs with role-based access control.
+5. **No Dangerous DOM Operations**: Audited for zero occurrences of `dangerouslySetInnerHTML`, `innerHTML`, or client-side eval.

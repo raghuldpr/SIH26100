@@ -1,15 +1,15 @@
-import React from 'react';
+import React from "react";
+import { BrowserRouter } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";
+import { AppRoutes } from "./routes/AppRoutes";
 
 export const App: React.FC = () => {
   return (
-    <main className="container">
-      <h1 className="title">SIH26100</h1>
-      <p className="subtitle">Bid Compliance Verification Platform</p>
-      <div className="status-badge">
-        <span className="status-dot" aria-hidden="true"></span>
-        <span>Frontend is running.</span>
-      </div>
-    </main>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
   );
 };
 

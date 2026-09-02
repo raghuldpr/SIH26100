@@ -1,103 +1,33 @@
-:root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: light dark;
-  color: #1e293b;
-  background-color: #f8fafc;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    color: #f1f5f9;
-    background-color: #0f172a;
+    --font-sans: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+  }
+
+  body {
+    @apply bg-background text-on-background font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-#root {
-  width: 100%;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-.container {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 2.5rem;
-  border-radius: 12px;
-  background-color: #ffffff;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e2e8f0;
-}
-
-@media (prefers-color-scheme: dark) {
-  .container {
-    background-color: #1e293b;
-    border-color: #334155;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+@layer utilities {
+  /* Custom scrollbar matching Stitch design */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
-}
-
-.title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  margin-bottom: 0.5rem;
-  color: #0284c7;
-}
-
-.subtitle {
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: #64748b;
-  margin-bottom: 2rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  .subtitle {
-    color: #94a3b8;
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
   }
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
-  border-radius: 9999px;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-
-@media (prefers-color-scheme: dark) {
-  .status-badge {
-    background-color: #064e3b;
-    color: #a7f3d0;
-    border-color: #059669;
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(112, 121, 115, 0.2);
+    border-radius: 9999px;
   }
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #10b981;
-  border-radius: 50%;
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(112, 121, 115, 0.4);
+  }
 }

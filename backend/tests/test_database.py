@@ -36,7 +36,11 @@ def test_database_url_normalization():
 
 def test_alembic_config_structure():
     """Verify alembic configuration can load script directory without errors."""
-    alembic_cfg = Config("alembic.ini")
+    from pathlib import Path
+    alembic_path = Path(__file__).parent.parent / "alembic.ini"
+    if not alembic_path.exists():
+        alembic_path = Path("alembic.ini")
+    alembic_cfg = Config(str(alembic_path))
     script = ScriptDirectory.from_config(alembic_cfg)
     assert script is not None
 

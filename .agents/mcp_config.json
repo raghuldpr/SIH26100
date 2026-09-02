@@ -2,6 +2,12 @@
   "mcpServers": {
     "n8n": {
       "serverUrl": "http://localhost:5678/mcp-server/http"
+    },
+    "stitch": {
+      "serverUrl": "https://stitch.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "YOUR_STITCH_API_KEY"
+      }
     }
   }
 }

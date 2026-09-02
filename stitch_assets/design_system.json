@@ -1,0 +1,139 @@
+{
+  "designSystems": [
+    {
+      "name": "assets/30cdde6c08df4ab6bc0b4c63e961cffd",
+      "designSystem": {
+        "displayName": "Tender Analytics System",
+        "styleGuidelines": "## Brand & Style\n\nThis design system is engineered for high-stakes procurement and tender management. The visual language balances institutional reliability with modern data clarity. It is designed to evoke a sense of **calm authority**, **precision**, and **efficiency**.\n\nThe style is **Corporate Modern**, characterized by:\n- **Spatial Clarity:** Generous whitespace around data clusters to prevent cognitive overload.\n- **Soft Precision:** Crisp, high-contrast text paired with rounded, friendly container geometry.\n- **Layered Logic:** Using tonal depth rather than heavy lines to define information hierarchy.\n- **Data-Forward:** Visual emphasis is placed on KPIs and trends, using color as a functional indicator of status and health.\n\n## Layout & Spacing\n\nThe layout follows a **structured fluid grid** with a fixed sidebar for high-frequency navigation.\n\n- **Sidebar:** A narrow, high-efficiency vertical rail (80px) houses iconography.\n- **Main Content:** Utilizes a 12-column grid. Components should span 3 columns for small metrics, 6 columns for charts, and 12 columns for data tables.\n- **Gaps:** A consistent 20px gap between cards ensures the \"soft\" background color is visible, creating the necessary separation for the layered elevation effect.\n- **Responsive Behavior:** \n    - **Desktop:** Multi-column dashboard view.\n    - **Tablet:** Sidebar collapses to a bottom bar; grid shifts to 2 columns.\n    - **Mobile:** Single column stack with 16px horizontal margins.\n\n## Elevation & Depth\n\nThis system uses **Tonal Layering** combined with **Ambient Shadows** to create a sense of organized depth.\n\n- **Level 0 (Background):** Solid `#F4F7F6`. No shadow.\n- **Level 1 (Cards/Containers):** Solid white surface with a very soft, diffused shadow: `0px 4px 20px rgba(18, 93, 68, 0.05)`. The green tint in the shadow tethers the cards to the brand palette.\n- **Level 2 (Interactive/Floating):** Used for dropdowns and tooltips. Higher contrast shadow: `0px 10px 30px rgba(0, 0, 0, 0.08)`.\n- **Inner Depth:** Subtle 1px borders in `#E2E8F0` are used inside cards for secondary table row separation, rather than shadows.\n\n## Components\n\n### Buttons\n- **Primary:** Solid `#125D44` with white text. High-contrast.\n- **Secondary:** Surface `#E8F0EE` with primary green text. Used for \"Add\" or \"Filter\" actions.\n- **Ghost:** No background, primary green text and icon. Used for auxiliary actions like \"View More.\"\n\n### Cards\n- Always white background.\n- Include a 24px internal padding.\n- Headers should include a 16px icon and a \"Secondary Action\" (e.g., an 'expand' or 'export' icon) in the top-right corner.\n\n### Data Tables\n- Row hover state uses `#F4F7F6`.\n- First column (Tender Title) should be `headline-md` weight.\n- Status indicators must be pills with low-opacity backgrounds (e.g., Success status: Green text on 10% opacity green background).\n\n### Input Fields\n- Subtle 1px border in `#CBD5E1`.\n- On focus: 2px border in `#125D44` with a soft outer glow.\n\n### Analytics Visuals\n- Bar charts should use rounded caps.\n- Line charts should use a smooth interpolation (spline) with a subtle gradient fill below the line using the primary green at 5% opacity.",
+        "theme": {
+          "colorMode": "LIGHT",
+          "font": "HANKEN_GROTESK",
+          "roundness": "ROUND_EIGHT",
+          "customColor": "#125d44",
+          "headlineFont": "HANKEN_GROTESK",
+          "bodyFont": "HANKEN_GROTESK",
+          "labelFont": "JETBRAINS_MONO",
+          "namedColors": {
+            "surface_bright": "#f8f9ff",
+            "surface_container_low": "#eff4ff",
+            "inverse_on_surface": "#eaf1ff",
+            "on_secondary": "#ffffff",
+            "on_error": "#ffffff",
+            "background": "#f8f9ff",
+            "primary_container": "#125d44",
+            "on_primary": "#ffffff",
+            "tertiary": "#383c3c",
+            "on_background": "#0b1c30",
+            "tertiary_fixed": "#e0e3e2",
+            "error_container": "#ffdad6",
+            "surface_container_lowest": "#ffffff",
+            "primary": "#004430",
+            "secondary_container": "#d9e1df",
+            "on_primary_fixed_variant": "#00513a",
+            "surface_variant": "#d3e4fe",
+            "primary_fixed_dim": "#8fd5b5",
+            "surface_container": "#e5eeff",
+            "on_primary_container": "#8ed4b4",
+            "on_tertiary_fixed_variant": "#434847",
+            "surface_container_highest": "#d3e4fe",
+            "on_secondary_fixed": "#151d1c",
+            "on_secondary_container": "#5c6463",
+            "on_secondary_fixed_variant": "#404847",
+            "on_error_container": "#93000a",
+            "surface_dim": "#cbdbf5",
+            "secondary_fixed_dim": "#c0c8c6",
+            "surface_container_high": "#dce9ff",
+            "error": "#ba1a1a",
+            "outline_variant": "#bfc9c2",
+            "on_tertiary": "#ffffff",
+            "inverse_primary": "#8fd5b5",
+            "on_tertiary_fixed": "#181c1c",
+            "primary_fixed": "#abf1d0",
+            "on_surface": "#0b1c30",
+            "surface": "#f8f9ff",
+            "inverse_surface": "#213145",
+            "on_primary_fixed": "#002115",
+            "secondary": "#58605f",
+            "tertiary_container": "#4f5353",
+            "on_tertiary_container": "#c3c6c6",
+            "secondary_fixed": "#dce4e2",
+            "on_surface_variant": "#3f4944",
+            "tertiary_fixed_dim": "#c4c7c6",
+            "surface_tint": "#246a50",
+            "outline": "#707973"
+          },
+          "designMd": "---\nname: Tender Analytics System\ncolors:\n  surface: '#f8f9ff'\n  surface-dim: '#cbdbf5'\n  surface-bright: '#f8f9ff'\n  surface-container-lowest: '#ffffff'\n  surface-container-low: '#eff4ff'\n  surface-container: '#e5eeff'\n  surface-container-high: '#dce9ff'\n  surface-container-highest: '#d3e4fe'\n  on-surface: '#0b1c30'\n  on-surface-variant: '#3f4944'\n  inverse-surface: '#213145'\n  inverse-on-surface: '#eaf1ff'\n  outline: '#707973'\n  outline-variant: '#bfc9c2'\n  surface-tint: '#246a50'\n  primary: '#004430'\n  on-primary: '#ffffff'\n  primary-container: '#125d44'\n  on-primary-container: '#8ed4b4'\n  inverse-primary: '#8fd5b5'\n  secondary: '#58605f'\n  on-secondary: '#ffffff'\n  secondary-container: '#d9e1df'\n  on-secondary-container: '#5c6463'\n  tertiary: '#383c3c'\n  on-tertiary: '#ffffff'\n  tertiary-container: '#4f5353'\n  on-tertiary-container: '#c3c6c6'\n  error: '#ba1a1a'\n  on-error: '#ffffff'\n  error-container: '#ffdad6'\n  on-error-container: '#93000a'\n  primary-fixed: '#abf1d0'\n  primary-fixed-dim: '#8fd5b5'\n  on-primary-fixed: '#002115'\n  on-primary-fixed-variant: '#00513a'\n  secondary-fixed: '#dce4e2'\n  secondary-fixed-dim: '#c0c8c6'\n  on-secondary-fixed: '#151d1c'\n  on-secondary-fixed-variant: '#404847'\n  tertiary-fixed: '#e0e3e2'\n  tertiary-fixed-dim: '#c4c7c6'\n  on-tertiary-fixed: '#181c1c'\n  on-tertiary-fixed-variant: '#434847'\n  background: '#f8f9ff'\n  on-background: '#0b1c30'\n  surface-variant: '#d3e4fe'\ntypography:\n  display:\n    fontFamily: Hanken Grotesk\n    fontSize: 32px\n    fontWeight: '600'\n    lineHeight: 40px\n    letterSpacing: -0.02em\n  headline-lg:\n    fontFamily: Hanken Grotesk\n    fontSize: 24px\n    fontWeight: '600'\n    lineHeight: 32px\n  headline-md:\n    fontFamily: Hanken Grotesk\n    fontSize: 20px\n    fontWeight: '500'\n    lineHeight: 28px\n  body-lg:\n    fontFamily: Hanken Grotesk\n    fontSize: 16px\n    fontWeight: '400'\n    lineHeight: 24px\n  body-md:\n    fontFamily: Hanken Grotesk\n    fontSize: 14px\n    fontWeight: '400'\n    lineHeight: 20px\n  label-caps:\n    fontFamily: JetBrains Mono\n    fontSize: 11px\n    fontWeight: '500'\n    lineHeight: 16px\n    letterSpacing: 0.05em\n  stat-value:\n    fontFamily: Hanken Grotesk\n    fontSize: 28px\n    fontWeight: '700'\n    lineHeight: 32px\n  display-mobile:\n    fontFamily: Hanken Grotesk\n    fontSize: 24px\n    fontWeight: '600'\n    lineHeight: 32px\nrounded:\n  sm: 0.25rem\n  DEFAULT: 0.5rem\n  md: 0.75rem\n  lg: 1rem\n  xl: 1.5rem\n  full: 9999px\nspacing:\n  container-padding: 24px\n  card-gap: 20px\n  element-gap: 12px\n  sidebar-width: 80px\n  max-content-width: 1440px\n---\n\n## Brand & Style\n\nThis design system is engineered for high-stakes procurement and tender management. The visual language balances institutional reliability with modern data clarity. It is designed to evoke a sense of **calm authority**, **precision**, and **efficiency**.\n\nThe style is **Corporate Modern**, characterized by:\n- **Spatial Clarity:** Generous whitespace around data clusters to prevent cognitive overload.\n- **Soft Precision:** Crisp, high-contrast text paired with rounded, friendly container geometry.\n- **Layered Logic:** Using tonal depth rather than heavy lines to define information hierarchy.\n- **Data-Forward:** Visual emphasis is placed on KPIs and trends, using color as a functional indicator of status and health.\n\n## Colors\n\nThe palette is anchored in professional \"Forest Green\" and \"Slate Grays\" to provide a sophisticated, trustworthy atmosphere suitable for financial and governmental data.\n\n- **Primary (#125D44):** A deep, saturated green used for brand elements, primary actions, and positive status indicators.\n- **Secondary (#E8F0EE):** A tinted mint-gray for subtle backgrounds, hover states, and \"soft\" buttons.\n- **Surface (#FFFFFF):** Pure white is reserved for high-priority card containers to create contrast against the background.\n- **Background (#F4F7F6):** A very soft, cool gray-green that reduces eye strain during long analytical sessions.\n- **Functional Colors:** \n    - **Success:** Primary Green.\n    - **Warning:** #F59E0B (Amber) for pending deadlines.\n    - **Error/Alert:** #EF4444 (Red) for rejected tenders.\n\n## Typography\n\nThe typography system prioritizes legibility in data-dense environments. **Hanken Grotesk** provides a sharp, contemporary feel that remains readable at small sizes. \n\n- **Hierarchy:** Use bold weights for currency values and tender titles. Use regular weights for descriptions and metadata.\n- **Technical Accents:** **JetBrains Mono** is utilized for labels, IDs, and secondary data points to provide a \"technical\" and precise character to the analytics.\n- **Scale:** On mobile devices, large display headers should scale down to `display-mobile` to maintain layout integrity.\n\n## Layout & Spacing\n\nThe layout follows a **structured fluid grid** with a fixed sidebar for high-frequency navigation.\n\n- **Sidebar:** A narrow, high-efficiency vertical rail (80px) houses iconography.\n- **Main Content:** Utilizes a 12-column grid. Components should span 3 columns for small metrics, 6 columns for charts, and 12 columns for data tables.\n- **Gaps:** A consistent 20px gap between cards ensures the \"soft\" background color is visible, creating the necessary separation for the layered elevation effect.\n- **Responsive Behavior:** \n    - **Desktop:** Multi-column dashboard view.\n    - **Tablet:** Sidebar collapses to a bottom bar; grid shifts to 2 columns.\n    - **Mobile:** Single column stack with 16px horizontal margins.\n\n## Elevation & Depth\n\nThis system uses **Tonal Layering** combined with **Ambient Shadows** to create a sense of organized depth.\n\n- **Level 0 (Background):** Solid `#F4F7F6`. No shadow.\n- **Level 1 (Cards/Containers):** Solid white surface with a very soft, diffused shadow: `0px 4px 20px rgba(18, 93, 68, 0.05)`. The green tint in the shadow tethers the cards to the brand palette.\n- **Level 2 (Interactive/Floating):** Used for dropdowns and tooltips. Higher contrast shadow: `0px 10px 30px rgba(0, 0, 0, 0.08)`.\n- **Inner Depth:** Subtle 1px borders in `#E2E8F0` are used inside cards for secondary table row separation, rather than shadows.\n\n## Shapes\n\nThe shape language is consistently **Rounded (Level 2)** to soften the \"analytical\" nature of the data and make the interface feel modern and approachable.\n\n- **Standard Cards:** 1rem (16px) corner radius.\n- **Buttons & Inputs:** 0.5rem (8px) corner radius.\n- **Status Pills:** Fully rounded (pill-shaped) to distinguish them from interactive buttons.\n- **Icon Enclosures:** Squares with 12px rounding to match the card aesthetic.\n\n## Components\n\n### Buttons\n- **Primary:** Solid `#125D44` with white text. High-contrast.\n- **Secondary:** Surface `#E8F0EE` with primary green text. Used for \"Add\" or \"Filter\" actions.\n- **Ghost:** No background, primary green text and icon. Used for auxiliary actions like \"View More.\"\n\n### Cards\n- Always white background.\n- Include a 24px internal padding.\n- Headers should include a 16px icon and a \"Secondary Action\" (e.g., an 'expand' or 'export' icon) in the top-right corner.\n\n### Data Tables\n- Row hover state uses `#F4F7F6`.\n- First column (Tender Title) should be `headline-md` weight.\n- Status indicators must be pills with low-opacity backgrounds (e.g., Success status: Green text on 10% opacity green background).\n\n### Input Fields\n- Subtle 1px border in `#CBD5E1`.\n- On focus: 2px border in `#125D44` with a soft outer glow.\n\n### Analytics Visuals\n- Bar charts should use rounded caps.\n- Line charts should use a smooth interpolation (spline) with a subtle gradient fill below the line using the primary green at 5% opacity.",
+          "colorVariant": "FIDELITY",
+          "overridePrimaryColor": "#125d44",
+          "overrideSecondaryColor": "#e8f0ee",
+          "overrideTertiaryColor": "#f4f7f6",
+          "overrideNeutralColor": "#64748b",
+          "spacingScale": 2,
+          "typography": {
+            "headline-md": {
+              "fontFamily": "Hanken Grotesk",
+              "fontSize": "20px",
+              "fontWeight": "500",
+              "lineHeight": "28px"
+            },
+            "label-caps": {
+              "fontFamily": "JetBrains Mono",
+              "fontSize": "11px",
+              "fontWeight": "500",
+              "lineHeight": "16px",
+              "letterSpacing": "0.05em"
+            },
+            "stat-value": {
+              "fontFamily": "Hanken Grotesk",
+              "fontSize": "28px",
+              "fontWeight": "700",
+              "lineHeight": "32px"
+            },
+            "display-mobile": {
+              "fontFamily": "Hanken Grotesk",
+              "fontSize": "24px",
+              "fontWeight": "600",
+              "lineHeight": "32px"
+            },
+            "body-lg": {
+              "fontFamily": "Hanken Grotesk",
+              "fontSize": "16px",
+              "fontWeight": "400",
+              "lineHeight": "24px"
+            },
+            "display": {
+              "fontFamily": "Hanken Grotesk",
+              "fontSize": "32px",
+              "fontWeight": "600",
+              "lineHeight": "40px",
+              "letterSpacing": "-0.02em"
+            },
+            "body-md": {
+              "fontFamily": "Hanken Grotesk",
+              "fontSize": "14px",
+              "fontWeight": "400",
+              "lineHeight": "20px"
+            },
+            "headline-lg": {
+              "fontFamily": "Hanken Grotesk",
+              "fontSize": "24px",
+              "fontWeight": "600",
+              "lineHeight": "32px"
+            }
+          },
+          "spacing": {
+            "card-gap": "20px",
+            "sidebar-width": "80px",
+            "max-content-width": "1440px",
+            "element-gap": "12px",
+            "container-padding": "24px"
+          },
+          "headlineFontFamily": "Hanken Grotesk",
+          "bodyFontFamily": "Hanken Grotesk",
+          "labelFontFamily": "Jetbrains Mono"
+        }
+      },
+      "version": "1"
+    }
+  ]
+}
