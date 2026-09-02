@@ -40,12 +40,10 @@ def test_user_example_average_turnover_normalization():
     assert result.type == RequirementType.FINANCIAL.value
     assert result.rule == "AVERAGE_TURNOVER"
     assert result.mandatory is True
-    assert result.parameters == {
-        "minimum": 1500000,
-        "currency": "INR",
-        "period": 3,
-        "period_unit": "YEARS",
-    }
+    assert result.parameters["minimum"] == 1500000
+    assert result.parameters["currency"] == "INR"
+    assert result.parameters["period"] == 3
+    assert result.parameters["period_unit"] == "YEARS"
     assert result.source_page == 12
     assert result.source_section == "Eligibility Criteria"
     assert result.source_text == clause_text

@@ -73,10 +73,13 @@ class Settings(BaseSettings):
     GROQ_MAX_RETRIES: int = 2
     GROQ_TEMPERATURE: float = 0.0
 
-
-
-
-
+    # n8n Multi-Agent Orchestration Configuration (Phase 10)
+    N8N_BASE_URL: str = "http://localhost:5678"
+    N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook/sih26100/bid-verification"
+    N8N_API_KEY: str = ""
+    N8N_WEBHOOK_SECRET: str = "sih26100-n8n-webhook-secret"
+    N8N_TIMEOUT_SECONDS: float = 60.0
+    N8N_MAX_RETRIES: int = 3
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

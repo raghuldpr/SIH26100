@@ -102,6 +102,18 @@ except ImportError:
     ComplianceService = None  # type: ignore
     compliance_service = None  # type: ignore
 
+from app.services.n8n_client import (
+    N8nClient,
+    N8nClientError,
+    N8nConnectionError,
+    N8nTimeoutError,
+    n8n_client,
+)
+from app.services.verification_service import (
+    VerificationService,
+    verification_service,
+)
+
 __all__ = [
     "create_tender",
     "get_tender_by_id",
@@ -170,11 +182,11 @@ __all__ = [
     "process_tender_pages",
     "ComplianceService",
     "compliance_service",
+    "N8nClient",
+    "n8n_client",
+    "N8nClientError",
+    "N8nTimeoutError",
+    "N8nConnectionError",
+    "VerificationService",
+    "verification_service",
 ]
-
-
-
-
-
-
-

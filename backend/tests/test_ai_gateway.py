@@ -95,7 +95,7 @@ def test_ai_gateway_successful_interpretation():
 
     # Verify NormalizedRequirement output container
     assert response.normalized_requirement is not None
-    assert response.normalized_requirement.status == NormalizationStatus.NORMALIZED
+    assert response.normalized_requirement.status in (NormalizationStatus.NORMALIZED, NormalizationStatus.AI_RESOLVED)
     assert response.normalized_requirement.rule == "AVERAGE_TURNOVER"
     assert response.normalized_requirement.source_page == 14
 

@@ -174,6 +174,8 @@ class PDFExtractor:
                 requires_ocr = False
                 status_str = "EXTRACTED"
 
+            combined_full_text = "\n\n".join(full_text_fragments)
+
             return ExtractionResult(
                 format="PDF",
                 status=status_str,
