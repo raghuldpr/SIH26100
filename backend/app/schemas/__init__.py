@@ -91,6 +91,27 @@ from app.schemas.compliance import (
     RequirementResponse,
     TenderBidderEvaluationRequest,
 )
+from app.schemas.verification import (
+    AgentStatusEnum,
+    CompliancePolicyInput,
+    DocumentForensicInput,
+    ExperienceEvidenceInput,
+    ExperienceRequirementsInput,
+    FinalComplianceResult,
+    FinancialEvidenceInput,
+    FinancialRequirementsInput,
+    N8nAgentResult,
+    N8nVerificationPayload,
+    N8nVerificationResponse,
+    ProjectExperienceItem,
+    RiskLevelEnum,
+    VerificationAgentEnum,
+    VerificationDecisionEnum,
+    VerificationResponse,
+    VerificationStatusEnum,
+    VerificationSummaryItem,
+    VerificationTriggerRequest,
+)
 
 __all__ = [
     "AuthResponse",
@@ -144,5 +165,25 @@ __all__ = [
     "ComplianceResultResponse",
     "EvaluationRequest",
     "TenderBidderEvaluationRequest",
+    "AgentStatusEnum",
+    "CompliancePolicyInput",
+    "DocumentForensicInput",
+    "ExperienceEvidenceInput",
+    "ExperienceRequirementsInput",
+    "FinalComplianceResult",
+    "FinancialEvidenceInput",
+    "FinancialRequirementsInput",
+    "N8nAgentResult",
+    "N8nVerificationPayload",
+    "N8nVerificationResponse",
+    "ProjectExperienceItem",
+    "RiskLevelEnum",
+    "VerificationAgentEnum",
+    "VerificationDecisionEnum",
+    "VerificationResponse",
+    "VerificationStatusEnum",
+    "VerificationSummaryItem",
+    "VerificationTriggerRequest",
 ]
+
 
