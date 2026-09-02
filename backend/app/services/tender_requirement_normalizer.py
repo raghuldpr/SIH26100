@@ -150,31 +150,50 @@ class TenderRequirementNormalizer:
         clause: Union[ClauseCandidate, Dict[str, Any], str],
         page: Optional[int] = None,
         section: Optional[str] = None,
+        page_start: Optional[int] = None,
+        page_end: Optional[int] = None,
+        section_id: Optional[str] = None,
+        document_id: Optional[str] = None,
     ) -> NormalizedRequirement:
         """
         Translates a single candidate clause into a NormalizedRequirement.
-        Resolves 15+ standard procurement rules.
-        Marks incomplete or non-quantified criteria as AMBIGUOUS.
+        Resolves standard procurement rules deterministically.
+        Marks incomplete, vague, or non-quantified criteria as AMBIGUOUS without guessing.
         """
         # Unpack input
         if isinstance(clause, ClauseCandidate):
             source_text = clause.source_text
             source_page = clause.page
+            p_start = clause.page_start or clause.page
+            p_end = clause.page_end or clause.page
             source_section = clause.section
+            sec_id = clause.section_id
+            doc_id = clause.document_id
             cand_type = clause.candidate_type
             cand_confidence = clause.confidence
+            requires_semantic = clause.requires_semantic_interpretation
         elif isinstance(clause, dict):
             source_text = clause.get("source_text", clause.get("text", ""))
             source_page = clause.get("page", page)
+            p_start = clause.get("page_start", page_start or source_page)
+            p_end = clause.get("page_end", page_end or source_page)
             source_section = clause.get("section", section)
+            sec_id = clause.get("section_id", section_id)
+            doc_id = clause.get("document_id", document_id)
             cand_type = clause.get("candidate_type", clause.get("type"))
             cand_confidence = float(clause.get("confidence", 0.90))
+            requires_semantic = clause.get("requires_semantic_interpretation", False)
         else:
             source_text = str(clause)
             source_page = page
+            p_start = page_start or page
+            p_end = page_end or page
             source_section = section
+            sec_id = section_id
+            doc_id = document_id
             cand_type = None
             cand_confidence = 0.90
+            requires_semantic = False
 
         clean_text = source_text.strip()
         lower = clean_text.lower()
@@ -219,9 +238,139 @@ class TenderRequirementNormalizer:
                 mandatory=False,
                 confidence=0.98,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
+
+        # ---------------------------------------------------------------------
+        # Rule: EMD / BID SECURITY
+        # ---------------------------------------------------------------------
+        if "emd" in lower or "earnest money" in lower or "bid security" in lower:
+            amount = cls.normalize_indian_currency(clean_text)
+            pct_match = re.search(r"(\d+(?:\.\d+)?)\s*%", clean_text)
+            pct_val = float(pct_match.group(1)) if pct_match else None
+            is_declaration = "declaration" in lower or "bid security declaration" in lower
+
+            params: Dict[str, Any] = {"currency": "INR", "operator": ">="}
+            if amount:
+                params["amount"] = amount
+                params["value"] = amount
+            if pct_val:
+                params["percentage"] = pct_val
+            if is_declaration:
+                params["declaration_accepted"] = True
+
+            if not (amount or pct_val or is_declaration):
+                return NormalizedRequirement(
+                    status=NormalizationStatus.AMBIGUOUS,
+                    type=RequirementType.FINANCIAL.value,
+                    rule="EMD_REQUIREMENT",
+                    source_page=source_page,
+                    page_start=p_start,
+                    page_end=p_end,
+                    source_section=source_section,
+                    section_id=sec_id,
+                    document_id=doc_id,
+                    source_text=clean_text,
+                    requires_semantic_interpretation=True,
+                    ambiguity_reason="Missing quantifiable EMD amount or percentage threshold",
+                    confidence=None,
+                )
+
+            desc = f"Mandatory EMD submission: {clean_text}"
+            return NormalizedRequirement(
+                status=NormalizationStatus.NORMALIZED,
+                type=RequirementType.FINANCIAL.value,
+                rule="EMD_REQUIREMENT",
+                description=desc,
+                parameters=params,
+                mandatory=True,
+                confidence=0.98 if (amount or pct_val) else 0.92,
+                source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
+                source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
+                source_text=clean_text,
+            )
+
+        # ---------------------------------------------------------------------
+        # Rule: PERFORMANCE SECURITY / PBG
+        # ---------------------------------------------------------------------
+        if "performance security" in lower or "performance bank guarantee" in lower or "pbg" in lower or "contract performance" in lower:
+            amount = cls.normalize_indian_currency(clean_text)
+            pct_match = re.search(r"(\d+(?:\.\d+)?)\s*%", clean_text)
+            pct_val = float(pct_match.group(1)) if pct_match else None
+
+            params: Dict[str, Any] = {"currency": "INR", "operator": ">="}
+            if pct_val:
+                params["percentage"] = pct_val
+            if amount:
+                params["amount"] = amount
+                params["value"] = amount
+
+            if not (pct_val or amount):
+                return NormalizedRequirement(
+                    status=NormalizationStatus.AMBIGUOUS,
+                    type=RequirementType.FINANCIAL.value,
+                    rule="PERFORMANCE_SECURITY",
+                    source_page=source_page,
+                    page_start=p_start,
+                    page_end=p_end,
+                    source_section=source_section,
+                    section_id=sec_id,
+                    document_id=doc_id,
+                    source_text=clean_text,
+                    requires_semantic_interpretation=True,
+                    ambiguity_reason="Missing quantifiable percentage or amount for performance security",
+                    confidence=None,
+                )
+
+            desc = f"Performance Security requirement of {pct_val}% of contract value" if pct_val else f"Performance Security of INR {amount:,}"
+            return NormalizedRequirement(
+                status=NormalizationStatus.NORMALIZED,
+                type=RequirementType.FINANCIAL.value,
+                rule="PERFORMANCE_SECURITY",
+                description=desc,
+                parameters=params,
+                mandatory=True,
+                confidence=0.96,
+                source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
+                source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
+                source_text=clean_text,
+            )
+
+        # ---------------------------------------------------------------------
+        # Rule: ESTIMATED TENDER VALUE
+        # ---------------------------------------------------------------------
+        if "estimated value" in lower or "tender value" in lower or "estimated cost" in lower:
+            amount = cls.normalize_indian_currency(clean_text)
+            if amount:
+                return NormalizedRequirement(
+                    status=NormalizationStatus.NORMALIZED,
+                    type=RequirementType.FINANCIAL.value,
+                    rule="ESTIMATED_TENDER_VALUE",
+                    description=f"Estimated Tender Value: INR {amount:,}",
+                    parameters={"estimated_value": amount, "value": amount, "currency": "INR"},
+                    mandatory=False,
+                    confidence=0.96,
+                    source_page=source_page,
+                    page_start=p_start,
+                    page_end=p_end,
+                    source_section=source_section,
+                    section_id=sec_id,
+                    document_id=doc_id,
+                    source_text=clean_text,
+                )
 
         # ---------------------------------------------------------------------
         # Rule 1 & 2: TURNOVER (Average Annual Turnover vs Minimum Turnover)
@@ -239,14 +388,21 @@ class TenderRequirementNormalizer:
                     type=RequirementType.FINANCIAL.value,
                     rule=rule_name,
                     source_page=source_page,
+                    page_start=p_start,
+                    page_end=p_end,
                     source_section=source_section,
+                    section_id=sec_id,
+                    document_id=doc_id,
                     source_text=clean_text,
+                    requires_semantic_interpretation=True,
                     ambiguity_reason="Missing quantifiable monetary threshold for turnover",
-                    confidence=0.50,
+                    confidence=None,
                 )
 
             params = {
                 "minimum": amount,
+                "value": amount,
+                "operator": ">=",
                 "currency": "INR",
             }
             if time_info:
@@ -266,7 +422,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.98 if time_info else 0.94,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
@@ -277,9 +437,10 @@ class TenderRequirementNormalizer:
             amount = cls.normalize_indian_currency(clean_text)
             is_positive = "positive" in lower
 
-            params: Dict[str, Any] = {"currency": "INR"}
+            params: Dict[str, Any] = {"currency": "INR", "operator": ">="}
             if amount:
                 params["minimum"] = amount
+                params["value"] = amount
             elif is_positive:
                 params["condition"] = "POSITIVE"
             else:
@@ -288,10 +449,15 @@ class TenderRequirementNormalizer:
                     type=RequirementType.FINANCIAL.value,
                     rule="NET_WORTH",
                     source_page=source_page,
+                    page_start=p_start,
+                    page_end=p_end,
                     source_section=source_section,
+                    section_id=sec_id,
+                    document_id=doc_id,
                     source_text=clean_text,
+                    requires_semantic_interpretation=True,
                     ambiguity_reason="Missing quantifiable net worth threshold or positive condition",
-                    confidence=0.50,
+                    confidence=None,
                 )
 
             return NormalizedRequirement(
@@ -303,14 +469,18 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.95,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
         # ---------------------------------------------------------------------
         # Rule 4, 5, 6: EXPERIENCE (Similar Work, Completed Projects, Experience Period)
         # ---------------------------------------------------------------------
-        if any(exp in lower for exp in ("experience", "similar work", "similar contracts", "completed works", "executed orders")):
+        if any(exp in lower for exp in ("experience", "similar work", "similar contracts", "completed works", "executed orders", "past performance")):
             time_info = cls.normalize_time_expression(clean_text)
             order_match = re.search(
                 r"\b(?:at\s*least|minimum)?\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*"
@@ -329,29 +499,31 @@ class TenderRequirementNormalizer:
             # Determine specific rule
             if min_orders is not None:
                 rule_name = "COMPLETED_PROJECTS"
-                params = {"min_completed_orders": min_orders, "scope": "SIMILAR_WORK" if is_similar else "GENERAL"}
+                params = {"min_completed_orders": min_orders, "scope": "SIMILAR_WORK" if is_similar else "GENERAL", "operator": ">="}
                 if time_info:
                     params["within_period"] = time_info["period"]
                     params["period_unit"] = time_info["period_unit"]
-            elif is_similar:
+            elif is_similar and time_info:
                 rule_name = "SIMILAR_WORK_EXPERIENCE"
-                params = {"scope": "SIMILAR_WORK"}
-                if time_info:
-                    params["min_years"] = time_info["period"]
-                    params["period_unit"] = time_info["period_unit"]
+                params = {"scope": "SIMILAR_WORK", "min_years": time_info["period"], "period_unit": time_info["period_unit"], "operator": ">="}
             elif time_info:
                 rule_name = "EXPERIENCE_PERIOD"
-                params = {"min_years": time_info["period"], "period_unit": time_info["period_unit"]}
+                params = {"min_years": time_info["period"], "period_unit": time_info["period_unit"], "operator": ">="}
             else:
                 return NormalizedRequirement(
                     status=NormalizationStatus.AMBIGUOUS,
                     type=RequirementType.EXPERIENCE.value,
                     rule="PAST_EXPERIENCE",
                     source_page=source_page,
+                    page_start=p_start,
+                    page_end=p_end,
                     source_section=source_section,
+                    section_id=sec_id,
+                    document_id=doc_id,
                     source_text=clean_text,
+                    requires_semantic_interpretation=True,
                     ambiguity_reason="Missing quantifiable duration (years) or completed order count",
-                    confidence=0.50,
+                    confidence=None,
                 )
 
             return NormalizedRequirement(
@@ -363,7 +535,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.95,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
@@ -383,7 +559,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.98,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
         elif has_gst:
@@ -396,7 +576,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.98,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
         elif has_pan:
@@ -409,7 +593,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.98,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
@@ -434,7 +622,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.94,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
@@ -451,7 +643,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.96,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
@@ -464,7 +660,7 @@ class TenderRequirementNormalizer:
 
             supplier_class = "CLASS_I" if "class-i" in lower or "class 1" in lower else "CLASS_II" if "class-ii" in lower else None
 
-            params = {"policy": "MAKE_IN_INDIA"}
+            params = {"policy": "MAKE_IN_INDIA", "operator": ">="}
             if pct_val is not None:
                 params["minimum_local_content_pct"] = pct_val
             if supplier_class:
@@ -479,7 +675,11 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.96 if pct_val is not None else 0.90,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
@@ -496,7 +696,11 @@ class TenderRequirementNormalizer:
                 mandatory=False,
                 confidence=0.92,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
@@ -513,18 +717,45 @@ class TenderRequirementNormalizer:
                 mandatory=False,
                 confidence=0.92,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
         # ---------------------------------------------------------------------
-        # Rule 14: Required Documents & Certificates (Affidavit, Undertaking, Non-Blacklisting)
+        # Rule: QUALITY / ISO CERTIFICATIONS
         # ---------------------------------------------------------------------
-        if any(doc in lower for doc in ("affidavit", "undertaking", "non-blacklisting", "integrity pact", "power of attorney", "ca certificate")):
+        if any(cert in lower for cert in ("iso 9001", "iso 27001", "iso 14001", "iso 45001", "cmmi", "bis", "ce certification")):
+            matched_certs = [c.upper() for c in ("iso 9001", "iso 27001", "iso 14001", "iso 45001", "cmmi", "bis") if c in lower]
+            return NormalizedRequirement(
+                status=NormalizationStatus.NORMALIZED,
+                type=RequirementType.TECHNICAL.value,
+                rule="QUALITY_CERTIFICATION",
+                description=f"Mandatory quality/security certification: {', '.join(matched_certs)}",
+                parameters={"certifications": matched_certs},
+                mandatory=True,
+                confidence=0.96,
+                source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
+                source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
+                source_text=clean_text,
+            )
+
+        # ---------------------------------------------------------------------
+        # Rule 14: Required Documents & Certificates (Affidavit, Undertaking, Non-Blacklisting, Balance Sheet)
+        # ---------------------------------------------------------------------
+        if any(doc in lower for doc in ("affidavit", "undertaking", "non-blacklisting", "integrity pact", "power of attorney", "ca certificate", "audited balance sheet", "audited financial")):
             doc_type = "NON_BLACKLISTING_AFFIDAVIT" if ("blacklisting" in lower or "debarred" in lower) else \
                        "INTEGRITY_PACT" if "integrity pact" in lower else \
                        "POWER_OF_ATTORNEY" if "power of attorney" in lower or "poa" in lower else \
                        "CA_CERTIFICATE" if "ca certificate" in lower or "chartered accountant" in lower else \
+                       "AUDITED_FINANCIAL_STATEMENT" if ("audited balance" in lower or "audited financial" in lower) else \
                        "UNDERTAKING"
 
             is_notarized = "notarized" in lower or "stamp paper" in lower
@@ -538,22 +769,31 @@ class TenderRequirementNormalizer:
                 mandatory=True,
                 confidence=0.94,
                 source_page=source_page,
+                page_start=p_start,
+                page_end=p_end,
                 source_section=source_section,
+                section_id=sec_id,
+                document_id=doc_id,
                 source_text=clean_text,
             )
 
         # ---------------------------------------------------------------------
-        # Fallback: Ambiguous / Unresolved clause
+        # Fallback: Ambiguous / Unresolved clause (NO GUESSING)
         # ---------------------------------------------------------------------
         return NormalizedRequirement(
             status=NormalizationStatus.AMBIGUOUS,
             type=cand_type or RequirementType.OTHER.value,
             rule="UNRESOLVED_CRITERIA",
             source_page=source_page,
+            page_start=p_start,
+            page_end=p_end,
             source_section=source_section,
+            section_id=sec_id,
+            document_id=doc_id,
             source_text=clean_text,
+            requires_semantic_interpretation=True,
             ambiguity_reason="Clause requires manual or LLM interpretation to determine precise compliance parameters",
-            confidence=0.40,
+            confidence=None,
         )
 
     @classmethod
@@ -582,9 +822,69 @@ class TenderRequirementNormalizer:
             requirements=results,
         )
 
+    @classmethod
+    def normalize_sections(
+        cls,
+        sections: List[Any],
+        document_id: Optional[str] = None,
+    ) -> NormalizationResult:
+        """
+        Directly extracts and normalizes tender requirements from bounded DetectedTenderSection objects.
+        """
+        from app.services.tender_clause_extractor import extract_clauses_from_sections
+        extract_res = extract_clauses_from_sections(sections, document_id=document_id)
+        return cls.normalize_candidates(extract_res.candidates)
+
+    @classmethod
+    def resolve_ambiguous_requirements(
+        cls,
+        requirements: List[NormalizedRequirement],
+        gateway: Optional[Any] = None,
+    ) -> List[NormalizedRequirement]:
+        """
+        Selectively escalates only ambiguous requirements (requires_semantic_interpretation=True)
+        to the AI Gateway with strict grounding validation and fallback preservation.
+        Deterministic requirements bypass Groq completely.
+        """
+        from app.services.ai_gateway import ai_gateway as default_gateway
+
+        ai = gateway or default_gateway
+        resolved_list: List[NormalizedRequirement] = []
+
+        for req in requirements:
+            # Deterministic Bypass: If already normalized or does not require semantic interpretation, do NOT invoke AI
+            if req.status == NormalizationStatus.NORMALIZED or not req.requires_semantic_interpretation:
+                resolved_list.append(req)
+                continue
+
+            # Semantic Escalation via AI Gateway
+            try:
+                ai_resp = ai.analyze_ambiguous_clause(
+                    clause_text=req.source_text,
+                    reason_for_escalation=req.ambiguity_reason or "Complex semantic requirement clause",
+                    source_page=req.source_page,
+                    source_section=req.source_section,
+                    candidate_type=req.type,
+                    page_start=req.page_start,
+                    page_end=req.page_end,
+                    section_id=req.section_id,
+                    document_id=req.document_id,
+                )
+                if ai_resp.success and ai_resp.normalized_requirement:
+                    resolved_list.append(ai_resp.normalized_requirement)
+                else:
+                    resolved_list.append(req)
+            except Exception as esc_err:
+                logger.warning(f"AI Gateway semantic escalation fallback on clause '{req.source_text[:30]}': {esc_err}")
+                resolved_list.append(req)
+
+        return resolved_list
+
 
 tender_requirement_normalizer = TenderRequirementNormalizer()
 normalize_clause = tender_requirement_normalizer.normalize_clause
 normalize_candidates = tender_requirement_normalizer.normalize_candidates
+normalize_sections = tender_requirement_normalizer.normalize_sections
+resolve_ambiguous_requirements = tender_requirement_normalizer.resolve_ambiguous_requirements
 normalize_indian_currency = tender_requirement_normalizer.normalize_indian_currency
 normalize_time_expression = tender_requirement_normalizer.normalize_time_expression

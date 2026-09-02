@@ -82,6 +82,12 @@ class Document(Base):
         nullable=True,
         doc="File payload size in bytes",
     )
+    sha256: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+        doc="Cryptographic SHA-256 digest of original binary content for forensics and tamper detection",
+    )
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

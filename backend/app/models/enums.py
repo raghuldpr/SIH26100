@@ -66,8 +66,13 @@ class DocumentStatus(str, enum.Enum):
 class ProcessingStatus(str, enum.Enum):
     """Document processing and OCR / compliance extraction lifecycle status."""
     NOT_PROCESSED = "NOT_PROCESSED"
+    UPLOADED = "UPLOADED"
     PROCESSING = "PROCESSING"
     PROCESSED = "PROCESSED"
+    EXTRACTED = "EXTRACTED"
+    OCR_REQUIRED = "OCR_REQUIRED"
+    OCR_COMPLETED = "OCR_COMPLETED"
+    PARTIALLY_EXTRACTED = "PARTIALLY_EXTRACTED"
     FAILED = "FAILED"
 
 

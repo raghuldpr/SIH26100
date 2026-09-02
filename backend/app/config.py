@@ -50,9 +50,18 @@ class Settings(BaseSettings):
     SUPABASE_STORAGE_BUCKET: str = "documents"
     MAX_UPLOAD_SIZE_MB: int = 10
     MAX_UPLOAD_FILES_PER_REQUEST: int = 10
-    ALLOWED_DOCUMENT_EXTENSIONS: List[str] = [".pdf", ".jpg", ".jpeg", ".png"]
+    ALLOWED_DOCUMENT_EXTENSIONS: List[str] = [
+        ".pdf",
+        ".docx",
+        ".xlsx",
+        ".jpg",
+        ".jpeg",
+        ".png",
+    ]
     ALLOWED_DOCUMENT_MIME_TYPES: List[str] = [
         "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "image/jpeg",
         "image/png",
     ]

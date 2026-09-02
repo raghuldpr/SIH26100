@@ -1,6 +1,9 @@
 import dataclasses
+import hashlib
+import io
 import logging
 import os
+import zipfile
 from typing import List, Optional, Tuple, Union
 from fastapi import UploadFile
 
@@ -15,11 +18,15 @@ MAGIC_SIGNATURES = {
     "application/pdf": [b"%PDF-"],
     "image/jpeg": [b"\xff\xd8\xff"],
     "image/png": [b"\x89PNG\r\n\x1a\n"],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [b"PK\x03\x04"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [b"PK\x03\x04"],
 }
 
 # Extension to expected MIME type mapping
 EXTENSION_MIME_MAP = {
     ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".png": "image/png",
@@ -27,9 +34,20 @@ EXTENSION_MIME_MAP = {
 
 MIME_EXTENSION_MAP = {
     "application/pdf": [".pdf"],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
     "image/jpeg": [".jpg", ".jpeg"],
     "image/png": [".png"],
 }
+
+
+def calculate_sha256(content: bytes) -> str:
+    """
+    Calculates the standard cryptographic SHA-256 hex digest for a byte payload.
+    """
+    if not content:
+        return hashlib.sha256(b"").hexdigest()
+    return hashlib.sha256(content).hexdigest()
 
 
 @dataclasses.dataclass
@@ -42,11 +60,13 @@ class ValidatedFile:
     extension: str
     mime_type: str
     file_size: int
+    sha256: str
 
 
 def detect_magic_mime_type(content: bytes) -> Optional[str]:
     """
-    Inspects binary payload leading bytes against known magic signatures.
+    Inspects binary payload leading bytes and internal container structure
+    against known magic signatures (PDF, JPEG, PNG, DOCX, XLSX).
     Returns detected MIME type if recognized, or None.
     """
     if not content:
@@ -65,8 +85,19 @@ def detect_magic_mime_type(content: bytes) -> Optional[str]:
     if stripped_head.startswith(b"%PDF-"):
         return "application/pdf"
 
-    return None
+    # Check OpenXML Zip Container (DOCX / XLSX)
+    if content.startswith(b"PK\x03\x04") or content.startswith(b"PK\x05\x06") or content.startswith(b"PK\x07\x08"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                names = zf.namelist()
+                if any(n.startswith("word/") or n == "word/document.xml" for n in names):
+                    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                if any(n.startswith("xl/") or n == "xl/workbook.xml" for n in names):
+                    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        except Exception:
+            return None
 
+    return None
 
 
 def inspect_file_integrity(content: bytes, mime_type: str) -> None:
@@ -89,6 +120,52 @@ def inspect_file_integrity(content: bytes, mime_type: str) -> None:
                 raise BadRequestException(
                     message="Invalid file format: File header does not match a valid PDF document."
                 )
+
+    elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        if file_len < 50:
+            raise BadRequestException(
+                message="Invalid file format: DOCX file is truncated or corrupted."
+            )
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                if zf.testzip() is not None:
+                    raise BadRequestException(
+                        message="Invalid file format: DOCX archive contains corrupted components."
+                    )
+                names = zf.namelist()
+                if not any(n.startswith("word/") or n == "word/document.xml" for n in names):
+                    raise BadRequestException(
+                        message="Invalid file format: DOCX missing core Word document XML structures."
+                    )
+        except BadRequestException:
+            raise
+        except Exception:
+            raise BadRequestException(
+                message="Invalid file format: File header does not match a valid DOCX document."
+            )
+
+    elif mime_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        if file_len < 50:
+            raise BadRequestException(
+                message="Invalid file format: XLSX file is truncated or corrupted."
+            )
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                if zf.testzip() is not None:
+                    raise BadRequestException(
+                        message="Invalid file format: XLSX archive contains corrupted components."
+                    )
+                names = zf.namelist()
+                if not any(n.startswith("xl/") or n == "xl/workbook.xml" for n in names):
+                    raise BadRequestException(
+                        message="Invalid file format: XLSX missing core Excel workbook XML structures."
+                    )
+        except BadRequestException:
+            raise
+        except Exception:
+            raise BadRequestException(
+                message="Invalid file format: File header does not match a valid XLSX document."
+            )
 
     elif mime_type == "image/jpeg":
         if file_len < 10:
@@ -119,7 +196,7 @@ def validate_file_content(
 ) -> ValidatedFile:
     """
     Synchronously validates a raw byte payload and filename for size, extension,
-    magic byte signature, and structural integrity.
+    magic byte signature, cryptographic checksum, and structural integrity.
     """
     if allowed_mime_types is None:
         allowed_mime_types = settings.ALLOWED_DOCUMENT_MIME_TYPES
@@ -146,7 +223,7 @@ def validate_file_content(
 
     if not ext:
         raise BadRequestException(
-            message="Uploaded file is missing a valid file extension (e.g., .pdf, .jpg, .png)."
+            message="Uploaded file is missing a valid file extension (e.g., .pdf, .docx, .xlsx, .jpg, .png)."
         )
 
     allowed_exts = set(settings.ALLOWED_DOCUMENT_EXTENSIONS)
@@ -159,7 +236,7 @@ def validate_file_content(
     detected_mime = detect_magic_mime_type(content)
     if not detected_mime:
         raise BadRequestException(
-            message="Invalid file format: File header does not match a valid PDF document or supported image format."
+            message="Invalid file format: File header does not match a valid PDF, DOCX, XLSX document or supported image format."
         )
 
     if detected_mime not in allowed_mime_types:
@@ -177,6 +254,9 @@ def validate_file_content(
     # 6. Basic structural integrity check
     inspect_file_integrity(content, detected_mime)
 
+    # 7. Compute cryptographic checksum
+    sha256_hash = calculate_sha256(content)
+
     return ValidatedFile(
         content=content,
         filename=clean_name,
@@ -184,6 +264,7 @@ def validate_file_content(
         extension=ext,
         mime_type=detected_mime,
         file_size=file_size,
+        sha256=sha256_hash,
     )
 
 

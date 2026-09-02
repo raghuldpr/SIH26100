@@ -1,8 +1,13 @@
 import io
 import logging
 from typing import Any, Dict, List, Optional
-import fitz  # PyMuPDF
-import pdfplumber
+
+try:
+    import fitz  # PyMuPDF
+    import pdfplumber
+except ImportError:
+    fitz = None  # type: ignore
+    pdfplumber = None  # type: ignore
 
 from app.schemas.processing import ExtractionResult, PageExtractionResult, TableData
 
@@ -157,17 +162,21 @@ class PDFExtractor:
                     )
                 )
 
-            # 5. Determine if whole document requires OCR
-            # If total text across all pages is below threshold or majority of pages are image-only
+            # 5. Determine if whole document or individual pages require OCR
             requires_ocr = False
-            if total_chars < self.min_total_chars:
+            if total_chars < self.min_total_chars or scanned_pages_count == page_count:
                 requires_ocr = True
-            elif scanned_pages_count == page_count:
+                status_str = "OCR_REQUIRED"
+            elif scanned_pages_count > 0:
                 requires_ocr = True
-
-            combined_full_text = "\n\n".join(full_text_fragments)
+                status_str = "PARTIALLY_EXTRACTED"
+            else:
+                requires_ocr = False
+                status_str = "EXTRACTED"
 
             return ExtractionResult(
+                format="PDF",
+                status=status_str,
                 page_count=page_count,
                 text=combined_full_text,
                 pages=pages,

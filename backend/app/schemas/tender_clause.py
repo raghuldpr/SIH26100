@@ -15,9 +15,25 @@ class ClauseCandidate(BaseModel):
         ge=1,
         description="1-indexed page number in the source tender document",
     )
+    page_start: Optional[int] = Field(
+        None,
+        description="1-indexed start page if clause spans multiple pages",
+    )
+    page_end: Optional[int] = Field(
+        None,
+        description="1-indexed end page if clause spans multiple pages",
+    )
     section: Optional[str] = Field(
         None,
         description="Identified section heading (e.g. 'Eligibility Criteria')",
+    )
+    section_id: Optional[str] = Field(
+        None,
+        description="Canonical section identifier from tender_section_detector",
+    )
+    document_id: Optional[str] = Field(
+        None,
+        description="Associated source document UUID",
     )
     source_text: str = Field(
         ...,
@@ -53,6 +69,14 @@ class ClauseCandidate(BaseModel):
     is_mandatory: bool = Field(
         default=True,
         description="Whether this clause indicates a mandatory requirement or an exemption/waiver",
+    )
+    extraction_method: str = Field(
+        default="deterministic",
+        description="Extraction method ('deterministic' or 'ai_gateway')",
+    )
+    requires_semantic_interpretation: bool = Field(
+        default=False,
+        description="True if clause is ambiguous and deferred to semantic LLM interpretation",
     )
 
     model_config = ConfigDict(from_attributes=True)

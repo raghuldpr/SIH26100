@@ -47,8 +47,8 @@ class NormalizedRequirement(BaseModel):
         default=True,
         description="Whether this criterion is mandatory for qualification",
     )
-    confidence: float = Field(
-        default=1.0,
+    confidence: Optional[float] = Field(
+        default=None,
         ge=0.0,
         le=1.0,
         description="Overall extraction and normalization confidence rating",
@@ -57,13 +57,33 @@ class NormalizedRequirement(BaseModel):
         None,
         description="1-indexed source page number in the tender document",
     )
+    page_start: Optional[int] = Field(
+        None,
+        description="1-indexed start page for multi-page requirements",
+    )
+    page_end: Optional[int] = Field(
+        None,
+        description="1-indexed end page for multi-page requirements",
+    )
     source_section: Optional[str] = Field(
         None,
         description="Source section heading (e.g. 'Eligibility Criteria')",
     )
+    section_id: Optional[str] = Field(
+        None,
+        description="Section identifier from tender_section_detector",
+    )
+    document_id: Optional[str] = Field(
+        None,
+        description="Source document UUID",
+    )
     source_text: str = Field(
         ...,
         description="Original verbatim excerpt from tender document serving as evidence",
+    )
+    requires_semantic_interpretation: bool = Field(
+        default=False,
+        description="True if clause is ambiguous and deferred to Phase 11.8 semantic LLM processing",
     )
     ambiguity_reason: Optional[str] = Field(
         None,
@@ -100,7 +120,7 @@ class NormalizedRequirement(BaseModel):
             description=self.description or self.source_text,
             parameters=self.parameters,
             mandatory=self.mandatory,
-            confidence=self.confidence,
+            confidence=self.confidence if self.confidence is not None else 1.0,
             source_page=self.source_page,
             source_section=self.source_section,
             source_text=self.source_text,

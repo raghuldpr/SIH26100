@@ -472,7 +472,6 @@ class TenderClauseExtractor:
 
         if not matched_kw:
             return None
-
         has_marker = any(p.search(text) for p in cls.PRESCRIPTIVE_MARKERS)
         if not (has_marker or in_eligibility_section):
             return None
@@ -483,14 +482,138 @@ class TenderClauseExtractor:
 
         return reason, matched_kw, confidence, params
 
+    @classmethod
+    def detect_emd_clause(
+        cls, text: str, in_eligibility_section: bool
+    ) -> Optional[Tuple[str, List[str], float, Dict[str, Any]]]:
+        """Detects Earnest Money Deposit (EMD) or Bid Security requirements."""
+        matched_kw: List[str] = []
+        lower = text.lower()
+
+        if "earnest money deposit" in lower or "earnest money" in lower:
+            matched_kw.append("earnest_money")
+        if "emd" in lower:
+            matched_kw.append("emd")
+        if "bid security declaration" in lower:
+            matched_kw.append("bid_security_declaration")
+        elif "bid security" in lower:
+            matched_kw.append("bid_security")
+
+        if not matched_kw:
+            return None
+
+        monetary_match = cls.MONETARY_REGEX.search(text)
+        pct_match = cls.PERCENTAGE_REGEX.search(text)
+
+        params: Dict[str, Any] = {"currency": "INR"}
+        if monetary_match:
+            amt = cls.parse_numeric_amount(monetary_match.groups())
+            if amt:
+                params["amount"] = amt
+                params["raw_amount"] = monetary_match.group(0).strip()
+        if pct_match:
+            try:
+                params["percentage"] = float(pct_match.group(1))
+            except ValueError:
+                pass
+
+        if "bid_security_declaration" in matched_kw:
+            params["declaration_required"] = True
+            reason = "bid security declaration requirement"
+            confidence = 0.96
+        elif monetary_match or pct_match:
+            reason = "emd / bid security amount threshold"
+            confidence = 0.95
+        elif in_eligibility_section or any(p.search(text) for p in cls.PRESCRIPTIVE_MARKERS):
+            reason = "emd / bid security requirement"
+            confidence = 0.90
+        else:
+            return None
+
+        return reason, matched_kw, confidence, params
+
+    @classmethod
+    def detect_pbg_clause(
+        cls, text: str, in_eligibility_section: bool
+    ) -> Optional[Tuple[str, List[str], float, Dict[str, Any]]]:
+        """Detects Performance Bank Guarantee (PBG) or Performance Security requirements."""
+        matched_kw: List[str] = []
+        lower = text.lower()
+
+        if "performance security" in lower:
+            matched_kw.append("performance_security")
+        if "performance bank guarantee" in lower:
+            matched_kw.append("performance_bank_guarantee")
+        if "pbg" in lower:
+            matched_kw.append("pbg")
+        if "security deposit" in lower and not any(e in lower for e in ("earnest", "emd")):
+            matched_kw.append("security_deposit")
+
+        if not matched_kw:
+            return None
+
+        pct_match = cls.PERCENTAGE_REGEX.search(text)
+        monetary_match = cls.MONETARY_REGEX.search(text)
+
+        params: Dict[str, Any] = {"currency": "INR"}
+        if pct_match:
+            try:
+                params["percentage"] = float(pct_match.group(1))
+            except ValueError:
+                pass
+        if monetary_match:
+            amt = cls.parse_numeric_amount(monetary_match.groups())
+            if amt:
+                params["amount"] = amt
+
+        if pct_match or monetary_match:
+            reason = "performance security percentage/amount threshold"
+            confidence = 0.95
+        elif in_eligibility_section or any(p.search(text) for p in cls.PRESCRIPTIVE_MARKERS):
+            reason = "performance security / pbg requirement"
+            confidence = 0.90
+        else:
+            return None
+
+        return reason, matched_kw, confidence, params
+
+    @classmethod
+    def detect_tender_value_clause(
+        cls, text: str, in_eligibility_section: bool
+    ) -> Optional[Tuple[str, List[str], float, Dict[str, Any]]]:
+        """Detects Estimated Tender Value / Contract Value."""
+        matched_kw: List[str] = []
+        lower = text.lower()
+
+        if "estimated value" in lower or "tender value" in lower or "estimated cost" in lower or "contract value" in lower:
+            matched_kw.append("estimated_tender_value")
+
+        if not matched_kw:
+            return None
+
+        monetary_match = cls.MONETARY_REGEX.search(text)
+        if not monetary_match:
+            return None
+
+        amt = cls.parse_numeric_amount(monetary_match.groups())
+        if not amt:
+            return None
+
+        params = {"estimated_value": amt, "currency": "INR"}
+        reason = "estimated tender value declaration"
+        confidence = 0.96
+
+        return reason, matched_kw, confidence, params
+
     # -------------------------------------------------------------------------
     # 5. CORE EXTRACTION PIPELINE
     # -------------------------------------------------------------------------
     @classmethod
     def split_into_clauses(cls, text: str) -> List[str]:
         """
-        Decomposes document page text into discrete candidate clauses.
-        Splits on numbered lists, bullet points, and sentence terminators.
+        Decomposes document text into discrete candidate clauses.
+        Splits on numbered lists, bullet points, sentence terminators,
+        and compound requirement conjunctions (' and ', ' as well as ', ';').
         """
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         clauses: List[str] = []
@@ -515,7 +638,22 @@ class TenderClauseExtractor:
             subparts = re.split(r"(?:(?<=[.;])\s+(?=[(]?[a-z\d]{1,2}[).]\s+)|(?<=\.)\s+(?=[A-Z]))", line)
             for sp in subparts:
                 cleaned = re.sub(r"^\s*(?:[•\-\*]|\(?\d+\)?[\.\)]|\(?[a-zA-Z]\)[\.\)]?)\s*", "", sp).strip()
-                if len(cleaned) >= 20:  # Minimum meaningful clause length
+                if len(cleaned) < 15:
+                    continue
+
+                # Compound sentence segmentation:
+                # If a sentence contains conjunctions (' and ', ' as well as ') joining multiple distinct requirements
+                compound_splits = re.split(
+                    r"(?:\s+and\s+(?=(?:minimum|must|submit|have|shall|possess|average)\b)|;\s*)",
+                    cleaned,
+                    flags=re.IGNORECASE,
+                )
+                if len(compound_splits) > 1:
+                    for c_part in compound_splits:
+                        c_clean = c_part.strip()
+                        if len(c_clean) >= 15:
+                            clauses.append(c_clean)
+                else:
                     clauses.append(cleaned)
 
         return clauses
@@ -573,6 +711,8 @@ class TenderClauseExtractor:
                     page=page_num,
                     section=current_section,
                     in_eligibility=in_eligibility,
+                    page_start=page_num,
+                    page_end=page_num,
                 )
                 if candidate:
                     candidates.append(candidate)
@@ -591,6 +731,69 @@ class TenderClauseExtractor:
         )
 
     @classmethod
+    def extract_from_sections(
+        cls,
+        sections: List[Any],
+        document_id: Optional[str] = None,
+    ) -> ClauseExtractionResult:
+        """
+        Extracts candidate requirement clauses directly from bounded DetectedTenderSection objects,
+        preserving section boundaries, multi-page spans, and document provenance without re-discovery.
+        """
+        start_time = time.perf_counter()
+        candidates: List[ClauseCandidate] = []
+        sections_detected: List[str] = []
+
+        for sec in sections:
+            if isinstance(sec, dict):
+                sec_id = sec.get("section_id")
+                sec_name = sec.get("name") or sec.get("section_type")
+                sec_text = sec.get("text", "")
+                p_start = sec.get("page_start", 1)
+                p_end = sec.get("page_end", p_start)
+                doc_id = sec.get("document_id") or document_id
+            else:
+                sec_id = getattr(sec, "section_id", None)
+                sec_name = getattr(sec, "name", None) or str(getattr(sec, "section_type", ""))
+                sec_text = getattr(sec, "text", "")
+                p_start = getattr(sec, "page_start", 1)
+                p_end = getattr(sec, "page_end", p_start)
+                doc_id = getattr(sec, "document_id", None) or document_id
+
+            if not sec_text or not sec_text.strip():
+                continue
+
+            if sec_name and sec_name not in sections_detected:
+                sections_detected.append(sec_name)
+
+            clauses = cls.split_into_clauses(sec_text)
+            for clause_text in clauses:
+                candidate = cls._evaluate_clause(
+                    text=clause_text,
+                    page=p_start,
+                    section=sec_name,
+                    in_eligibility=True,
+                    page_start=p_start,
+                    page_end=p_end,
+                    section_id=sec_id,
+                    document_id=doc_id,
+                )
+                if candidate:
+                    candidates.append(candidate)
+
+        total_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        logger.info(
+            f"Extracted {len(candidates)} candidate clauses across {len(sections)} bounded sections in {total_time_ms}ms"
+        )
+
+        return ClauseExtractionResult(
+            total_candidates=len(candidates),
+            candidates=candidates,
+            sections_detected=sections_detected,
+            processing_time_ms=total_time_ms,
+        )
+
+    @classmethod
     def extract_from_text(
         cls,
         text: str,
@@ -598,7 +801,8 @@ class TenderClauseExtractor:
         default_section: Optional[str] = None,
     ) -> ClauseExtractionResult:
         """Convenience method to process single page or monolithic document text."""
-        return cls.extract_from_pages([{"page_number": page, "text": text}])
+        page_dict = {"page_number": page, "text": text}
+        return cls.extract_from_pages([page_dict])
 
     @classmethod
     def _evaluate_clause(
@@ -606,13 +810,28 @@ class TenderClauseExtractor:
         text: str,
         page: int,
         section: Optional[str],
-        in_eligibility: bool,
+        in_eligibility: bool = False,
+        page_start: Optional[int] = None,
+        page_end: Optional[int] = None,
+        section_id: Optional[str] = None,
+        document_id: Optional[str] = None,
     ) -> Optional[ClauseCandidate]:
         """
         Runs deterministic detectors against a candidate clause.
         Returns a structured ClauseCandidate if an eligibility pattern is matched.
         """
-        # Order of evaluation: Exemptions -> Financial -> Experience -> OEM -> MII -> Statutory -> Document -> Technical
+        # Order of evaluation:
+        # 1. Exemptions
+        # 2. EMD / Bid Security
+        # 3. Performance Security / PBG
+        # 4. Estimated Tender Value
+        # 5. Financial (Turnover / Net worth)
+        # 6. Experience
+        # 7. OEM
+        # 8. MII
+        # 9. Statutory
+        # 10. Documents
+        # 11. Technical
 
         # 1. Exemption / Relaxation
         ex_res = cls.detect_exemption_clause(text, in_eligibility)
@@ -620,7 +839,11 @@ class TenderClauseExtractor:
             reason, kws, conf, params = ex_res
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.EXEMPTION.value,
                 detection_reason=reason,
@@ -629,16 +852,87 @@ class TenderClauseExtractor:
                 rule="STATUTORY_EXEMPTION",
                 parameters=params,
                 is_mandatory=False,
+                extraction_method="deterministic",
             )
 
-        # 2. Financial Criteria
+        # 2. EMD / Bid Security
+        emd_res = cls.detect_emd_clause(text, in_eligibility)
+        if emd_res:
+            reason, kws, conf, params = emd_res
+            return ClauseCandidate(
+                page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
+                section=section,
+                section_id=section_id,
+                document_id=document_id,
+                source_text=text,
+                candidate_type=RequirementType.FINANCIAL.value,
+                detection_reason=reason,
+                detected_keywords=kws,
+                confidence=conf,
+                rule="EMD_REQUIREMENT",
+                parameters=params,
+                is_mandatory=True,
+                extraction_method="deterministic",
+            )
+
+        # 3. Performance Security / PBG
+        pbg_res = cls.detect_pbg_clause(text, in_eligibility)
+        if pbg_res:
+            reason, kws, conf, params = pbg_res
+            return ClauseCandidate(
+                page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
+                section=section,
+                section_id=section_id,
+                document_id=document_id,
+                source_text=text,
+                candidate_type=RequirementType.FINANCIAL.value,
+                detection_reason=reason,
+                detected_keywords=kws,
+                confidence=conf,
+                rule="PERFORMANCE_SECURITY",
+                parameters=params,
+                is_mandatory=True,
+                extraction_method="deterministic",
+            )
+
+        # 4. Estimated Tender Value
+        tv_res = cls.detect_tender_value_clause(text, in_eligibility)
+        if tv_res:
+            reason, kws, conf, params = tv_res
+            return ClauseCandidate(
+                page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
+                section=section,
+                section_id=section_id,
+                document_id=document_id,
+                source_text=text,
+                candidate_type=RequirementType.FINANCIAL.value,
+                detection_reason=reason,
+                detected_keywords=kws,
+                confidence=conf,
+                rule="ESTIMATED_TENDER_VALUE",
+                parameters=params,
+                is_mandatory=False,
+                extraction_method="deterministic",
+            )
+
+        # 5. Financial Criteria
         fin_res = cls.detect_financial_clause(text, in_eligibility)
         if fin_res:
             reason, kws, conf, params = fin_res
             rule_id = "MINIMUM_ANNUAL_TURNOVER" if "turnover" in kws else "FINANCIAL_CAPACITY"
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.FINANCIAL.value,
                 detection_reason=reason,
@@ -647,15 +941,20 @@ class TenderClauseExtractor:
                 rule=rule_id,
                 parameters=params,
                 is_mandatory=True,
+                extraction_method="deterministic",
             )
 
-        # 3. Experience Criteria
+        # 6. Experience Criteria
         exp_res = cls.detect_experience_clause(text, in_eligibility)
         if exp_res:
             reason, kws, conf, params = exp_res
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.EXPERIENCE.value,
                 detection_reason=reason,
@@ -664,15 +963,20 @@ class TenderClauseExtractor:
                 rule="PAST_EXPERIENCE",
                 parameters=params,
                 is_mandatory=True,
+                extraction_method="deterministic",
             )
 
-        # 4. OEM Authorization
+        # 7. OEM Authorization
         oem_res = cls.detect_oem_clause(text, in_eligibility)
         if oem_res:
             reason, kws, conf, params = oem_res
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.OEM.value,
                 detection_reason=reason,
@@ -681,15 +985,20 @@ class TenderClauseExtractor:
                 rule="OEM_AUTHORIZATION",
                 parameters=params,
                 is_mandatory=True,
+                extraction_method="deterministic",
             )
 
-        # 5. Make in India
+        # 8. Make in India
         mii_res = cls.detect_mii_clause(text, in_eligibility)
         if mii_res:
             reason, kws, conf, params = mii_res
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.MII.value,
                 detection_reason=reason,
@@ -698,15 +1007,20 @@ class TenderClauseExtractor:
                 rule="MII_LOCAL_CONTENT",
                 parameters=params,
                 is_mandatory=True,
+                extraction_method="deterministic",
             )
 
-        # 6. Statutory Registrations
+        # 9. Statutory Registrations
         stat_res = cls.detect_statutory_clause(text, in_eligibility)
         if stat_res:
             reason, kws, conf, params = stat_res
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.STATUTORY.value,
                 detection_reason=reason,
@@ -715,15 +1029,20 @@ class TenderClauseExtractor:
                 rule="STATUTORY_REGISTRATION",
                 parameters=params,
                 is_mandatory=True,
+                extraction_method="deterministic",
             )
 
-        # 7. Mandatory Documents Checklist
+        # 10. Mandatory Documents Checklist
         doc_res = cls.detect_document_clause(text, in_eligibility)
         if doc_res:
             reason, kws, conf, params = doc_res
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.DOCUMENT.value,
                 detection_reason=reason,
@@ -732,15 +1051,20 @@ class TenderClauseExtractor:
                 rule="MANDATORY_DOCUMENT",
                 parameters=params,
                 is_mandatory=True,
+                extraction_method="deterministic",
             )
 
-        # 8. Technical Standards
+        # 11. Technical Standards
         tech_res = cls.detect_technical_clause(text, in_eligibility)
         if tech_res:
             reason, kws, conf, params = tech_res
             return ClauseCandidate(
                 page=page,
+                page_start=page_start or page,
+                page_end=page_end or page,
                 section=section,
+                section_id=section_id,
+                document_id=document_id,
                 source_text=text,
                 candidate_type=RequirementType.TECHNICAL.value,
                 detection_reason=reason,
@@ -749,6 +1073,7 @@ class TenderClauseExtractor:
                 rule="TECHNICAL_SPECIFICATION",
                 parameters=params,
                 is_mandatory=True,
+                extraction_method="deterministic",
             )
 
         return None
@@ -757,3 +1082,4 @@ class TenderClauseExtractor:
 tender_clause_extractor = TenderClauseExtractor()
 extract_clauses = tender_clause_extractor.extract_from_pages
 extract_clauses_from_text = tender_clause_extractor.extract_from_text
+extract_clauses_from_sections = tender_clause_extractor.extract_from_sections

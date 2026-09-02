@@ -1,9 +1,17 @@
+from __future__ import annotations
+
 import logging
 import time
 from typing import List, Optional, Tuple
-import cv2
-import fitz  # PyMuPDF
-import numpy as np
+
+try:
+    import cv2
+    import fitz  # PyMuPDF
+    import numpy as np
+except ImportError:
+    cv2 = None  # type: ignore
+    fitz = None  # type: ignore
+    np = None  # type: ignore
 
 from app.schemas.ocr import OCRDocumentResult, OCRPageResult, OCRTextBox
 from app.services.image_preprocessor import ImagePreprocessor, image_preprocessor
@@ -249,10 +257,12 @@ class OCRPipeline:
         pdf_bytes: bytes,
         dpi: int = 200,
         filename: Optional[str] = None,
+        pages_to_ocr: Optional[List[int]] = None,
     ) -> OCRDocumentResult:
         """
-        Renders every page of a scanned PDF into an image, applies OpenCV enhancement,
+        Renders pages of a scanned PDF into images, applies OpenCV enhancement,
         and performs page-by-page OCR extraction.
+        If pages_to_ocr is provided, selectively OCRs only the specified 1-indexed pages.
         """
         start_time = time.perf_counter()
 
@@ -302,6 +312,11 @@ class OCRPipeline:
 
             for page_idx in range(page_count):
                 page_num = page_idx + 1
+
+                # Skip pages not requested if selective page OCR is configured
+                if pages_to_ocr is not None and page_num not in pages_to_ocr:
+                    continue
+
                 page_start = time.perf_counter()
                 fitz_page = doc_fitz[page_idx]
 
@@ -389,6 +404,7 @@ class OCRPipeline:
         mime_type: Optional[str] = None,
         filename: Optional[str] = None,
         dpi: int = 200,
+        pages_to_ocr: Optional[List[int]] = None,
     ) -> OCRDocumentResult:
         """
         Unified router for OCR processing across PDF and image documents.
@@ -411,9 +427,159 @@ class OCRPipeline:
         )
 
         if is_pdf:
-            return self.process_scanned_pdf(file_bytes, dpi=dpi, filename=filename)
+            return self.process_scanned_pdf(file_bytes, dpi=dpi, filename=filename, pages_to_ocr=pages_to_ocr)
         else:
             return self.process_image(file_bytes, filename=filename)
+
+    def process_with_fallback(
+        self,
+        extract_res: "app.schemas.processing.ExtractionResult",
+        file_bytes: bytes,
+        mime_type: Optional[str] = None,
+        filename: Optional[str] = None,
+        dpi: int = 200,
+    ) -> "app.schemas.processing.ExtractionResult":
+        """
+        Executes OCR fallback ONLY if deterministic extraction was insufficient.
+        Preserves deterministic text on readable pages and selectively runs OCR
+        on scanned pages or image documents.
+        """
+        from app.schemas.processing import ExtractionResult, PageExtractionResult
+
+        # 1. If deterministic extraction was corrupt or unsupported, do not OCR
+        if extract_res.is_corrupted or not file_bytes:
+            return extract_res
+
+        # 2. Check if OCR is actually required
+        if not extract_res.requires_ocr and extract_res.status == "EXTRACTED":
+            # Deterministic text is sufficient: DO NOT trigger OCR
+            logger.debug(f"Document '{filename or 'unknown'}' has sufficient deterministic text. OCR not triggered.")
+            return extract_res
+
+        logger.info(
+            f"Initiating OCR fallback for document '{filename or 'unknown'}' "
+            f"(Format: {extract_res.format}, Status: {extract_res.status})"
+        )
+
+        # 3. Handle PDF format with selective page OCR
+        if extract_res.format == "PDF" and extract_res.pages:
+            scanned_pages = [p.page_number for p in extract_res.pages if p.requires_ocr]
+            if not scanned_pages:
+                scanned_pages = [p.page_number for p in extract_res.pages]
+
+            ocr_res = self.process_scanned_pdf(
+                pdf_bytes=file_bytes,
+                dpi=dpi,
+                filename=filename,
+                pages_to_ocr=scanned_pages,
+            )
+
+            if not ocr_res.is_success:
+                logger.error(f"OCR execution failed on document '{filename or 'unknown'}': {ocr_res.error_message}")
+                return ExtractionResult(
+                    format="PDF",
+                    status="FAILED",
+                    page_count=extract_res.page_count,
+                    text=extract_res.text,
+                    pages=extract_res.pages,
+                    requires_ocr=True,
+                    tables=extract_res.tables,
+                    is_corrupted=False,
+                    error_message=f"OCR execution failure: {ocr_res.error_message}",
+                    metadata=extract_res.metadata,
+                    ocr_data=ocr_res.model_dump(),
+                )
+
+            # OCR Succeeded: Merge OCR page texts into existing page extraction results
+            ocr_pages_map = {p.page_number: p for p in ocr_res.pages}
+            updated_pages: List[PageExtractionResult] = []
+            full_text_fragments: List[str] = []
+
+            for p in extract_res.pages:
+                if p.page_number in ocr_pages_map and p.page_number in scanned_pages:
+                    ocr_p = ocr_pages_map[p.page_number]
+                    merged_text = ocr_p.text.strip() if ocr_p.text else p.text
+                    updated_pages.append(
+                        PageExtractionResult(
+                            page_number=p.page_number,
+                            section_heading=p.section_heading,
+                            text=merged_text,
+                            word_count=len(merged_text.split()),
+                            char_count=len(merged_text),
+                            has_text=bool(merged_text),
+                            images_count=p.images_count,
+                            requires_ocr=False,
+                            tables=p.tables,
+                        )
+                    )
+                    if merged_text:
+                        full_text_fragments.append(merged_text)
+                else:
+                    updated_pages.append(p)
+                    if p.text:
+                        full_text_fragments.append(p.text)
+
+            combined_text = "\n\n".join(full_text_fragments)
+            final_status = "OCR_COMPLETED" if combined_text.strip() else "FAILED"
+
+            return ExtractionResult(
+                format="PDF",
+                status=final_status,
+                page_count=extract_res.page_count,
+                text=combined_text,
+                pages=updated_pages,
+                requires_ocr=False,
+                tables=extract_res.tables,
+                is_corrupted=False,
+                error_message=None if final_status == "OCR_COMPLETED" else "No text could be recognized via OCR.",
+                metadata=extract_res.metadata,
+                ocr_data=ocr_res.model_dump(),
+            )
+
+        # 4. Handle standalone Image documents
+        elif extract_res.format == "IMAGE":
+            ocr_res = self.process_image(file_bytes, filename=filename)
+            if not ocr_res.is_success:
+                return ExtractionResult(
+                    format="IMAGE",
+                    status="FAILED",
+                    page_count=1,
+                    text="",
+                    pages=[],
+                    requires_ocr=True,
+                    is_corrupted=False,
+                    error_message=f"OCR execution failure on image: {ocr_res.error_message}",
+                    ocr_data=ocr_res.model_dump(),
+                )
+
+            page_res = [
+                PageExtractionResult(
+                    page_number=1,
+                    text=ocr_res.full_text,
+                    word_count=len(ocr_res.full_text.split()),
+                    char_count=len(ocr_res.full_text),
+                    has_text=bool(ocr_res.full_text.strip()),
+                    images_count=1,
+                    requires_ocr=False,
+                    tables=[],
+                )
+            ]
+
+            return ExtractionResult(
+                format="IMAGE",
+                status="OCR_COMPLETED" if ocr_res.full_text.strip() else "FAILED",
+                page_count=1,
+                text=ocr_res.full_text,
+                pages=page_res,
+                requires_ocr=False,
+                tables=[],
+                is_corrupted=False,
+                error_message=None if ocr_res.full_text.strip() else "Image OCR yielded no readable text.",
+                ocr_data=ocr_res.model_dump(),
+            )
+
+        # 5. For DOCX / XLSX, OCR is never needed
+        return extract_res
 
 
 # Default singleton instance

@@ -37,10 +37,23 @@ from app.schemas.ocr import (
     OCRPageResult,
     OCRTextBox,
 )
+from app.schemas.normalized_content import (
+    NormalizedCurrency,
+    NormalizedDate,
+    NormalizedDocument,
+    NormalizedNumber,
+    NormalizedPage,
+    NormalizedTable,
+)
 from app.schemas.processing import (
     ExtractionResult,
     PageExtractionResult,
     TableData,
+)
+from app.schemas.tender_section import (
+    DetectedTenderSection,
+    SectionType,
+    TenderSectionDetectionResult,
 )
 
 from app.schemas.tender import (
@@ -112,6 +125,17 @@ from app.schemas.verification import (
     VerificationSummaryItem,
     VerificationTriggerRequest,
 )
+from app.schemas.packaged_output import (
+    CanonicalDocumentOutput,
+    DocumentTraceability,
+    ExtractionSummary,
+    PackagedDocumentMetadata,
+    PackagedRequirement,
+    PackagedSection,
+    RequirementAIMetadata,
+    RequirementResolution,
+    RequirementTraceability,
+)
 
 __all__ = [
     "AuthResponse",
@@ -134,6 +158,15 @@ __all__ = [
     "DocumentResponse",
     "DocumentUploadResponse",
     "MultiDocumentUploadResponse",
+    "NormalizedCurrency",
+    "NormalizedDate",
+    "NormalizedNumber",
+    "NormalizedTable",
+    "NormalizedPage",
+    "NormalizedDocument",
+    "DetectedTenderSection",
+    "SectionType",
+    "TenderSectionDetectionResult",
     "TenderBase",
     "TenderCreate",
     "TenderResponse",
@@ -184,6 +217,13 @@ __all__ = [
     "VerificationStatusEnum",
     "VerificationSummaryItem",
     "VerificationTriggerRequest",
+    "PackagedDocumentMetadata",
+    "PackagedSection",
+    "RequirementResolution",
+    "RequirementAIMetadata",
+    "RequirementTraceability",
+    "PackagedRequirement",
+    "ExtractionSummary",
+    "DocumentTraceability",
+    "CanonicalDocumentOutput",
 ]
-
-

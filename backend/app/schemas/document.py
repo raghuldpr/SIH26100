@@ -17,6 +17,7 @@ class DocumentResponse(BaseModel):
     document_type: DocumentType = Field(..., description="Document classification type")
     mime_type: Optional[str] = Field(None, description="Validated MIME type")
     file_size: Optional[int] = Field(None, description="File payload size in bytes")
+    sha256: Optional[str] = Field(None, description="SHA-256 cryptographic digest of document payload")
     storage_path: str = Field(..., description="Canonical cloud storage path")
     status: DocumentStatus = Field(..., description="Document lifecycle status")
     processing_status: ProcessingStatus = Field(

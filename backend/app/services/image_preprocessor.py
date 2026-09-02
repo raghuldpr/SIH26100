@@ -1,8 +1,16 @@
+from __future__ import annotations
+
 import logging
 from typing import Optional, Tuple
-import cv2
-import fitz  # PyMuPDF
-import numpy as np
+
+try:
+    import cv2
+    import fitz  # PyMuPDF
+    import numpy as np
+except ImportError:
+    cv2 = None  # type: ignore
+    fitz = None  # type: ignore
+    np = None  # type: ignore
 
 logger = logging.getLogger("app.services.image_preprocessor")
 
