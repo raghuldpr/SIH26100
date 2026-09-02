@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.packaged_output import CanonicalDocumentOutput
 from app.schemas.tender_requirement import TenderRequirementResponse
 from app.schemas.tender_requirement_normalizer import NormalizedRequirement
 
@@ -72,6 +73,10 @@ class TenderComplianceProfileResponse(BaseModel):
     requirements: List[TenderRequirementResponse] = Field(
         default_factory=list,
         description="Consolidated list of all persisted compliance requirements",
+    )
+    canonical_output: Optional[CanonicalDocumentOutput] = Field(
+        default=None,
+        description="Canonical Phase 11.9 verification package with full section and requirement provenance",
     )
     analyzed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

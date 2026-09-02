@@ -84,6 +84,10 @@ try:
         ComplianceService,
         compliance_service,
     )
+    from app.services.bidder_intake_service import (
+        BidderIntakeService,
+        bidder_intake_service,
+    )
 except ImportError:
     DocumentProcessingService = None  # type: ignore
     document_processing_service = None  # type: ignore
@@ -101,6 +105,8 @@ except ImportError:
     tender_intelligence_service = None  # type: ignore
     ComplianceService = None  # type: ignore
     compliance_service = None  # type: ignore
+    BidderIntakeService = None  # type: ignore
+    bidder_intake_service = None  # type: ignore
 
 from app.services.n8n_client import (
     N8nClient,
@@ -112,6 +118,10 @@ from app.services.n8n_client import (
 from app.services.verification_service import (
     VerificationService,
     verification_service,
+)
+from app.services.verification_aggregator import (
+    VerificationResultAggregator,
+    verification_aggregator,
 )
 
 __all__ = [
@@ -182,6 +192,8 @@ __all__ = [
     "process_tender_pages",
     "ComplianceService",
     "compliance_service",
+    "BidderIntakeService",
+    "bidder_intake_service",
     "N8nClient",
     "n8n_client",
     "N8nClientError",
@@ -189,4 +201,7 @@ __all__ = [
     "N8nConnectionError",
     "VerificationService",
     "verification_service",
+    "VerificationResultAggregator",
+    "verification_aggregator",
 ]
+

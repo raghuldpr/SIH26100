@@ -244,6 +244,7 @@ async def upload_bidder_documents_endpoint(
         DocumentType.OTHER,
         description="Document classification (e.g., PAN, GST, UDYAM, FINANCIAL_STATEMENT, EXPERIENCE_CERTIFICATE, OEM_AUTHORIZATION, MII_DECLARATION, OTHER)",
     ),
+    tender_id: Optional[UUID] = Form(None, description="Optional associated tender ID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -263,6 +264,7 @@ async def upload_bidder_documents_endpoint(
             bidder_id=bidder_id,
             file=upload_list[0],
             document_type=document_type,
+            tender_id=tender_id,
         )
     else:
         return await upload_multiple_bidder_documents(
@@ -270,7 +272,9 @@ async def upload_bidder_documents_endpoint(
             bidder_id=bidder_id,
             files=upload_list,
             document_type=document_type,
+            tender_id=tender_id,
         )
+
 
 
 

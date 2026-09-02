@@ -4,7 +4,7 @@ tests/test_verification_api.py
 """
 import json
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -151,11 +151,20 @@ class TestVerificationApiEndpoints:
             "X-Webhook-Signature": f"sha256={signature}",
         }
 
-        response = client.post("/api/v1/verification/webhook/callback", content=body_bytes, headers=headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "received"
-        assert data["verification_id"] == "VER-CB-999"
+        mock_execution = MagicMock()
+        mock_execution.verification_id = "VER-CB-999"
+        mock_execution.tender_id = mock_tender_id
+        mock_execution.bidder_id = mock_bidder_id
+        mock_execution.status = "RUNNING"
+
+        with patch("app.api.v1.endpoints.verification.crud_verification.get_by_verification_id", return_value=mock_execution), \
+             patch("app.api.v1.endpoints.verification.crud_verification.update_execution_completed"), \
+             patch("app.api.v1.endpoints.verification.crud_verification.record_audit_event"):
+            response = client.post("/api/v1/verification/webhook/callback", content=body_bytes, headers=headers)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "processed"
+            assert data["verification_id"] == "VER-CB-999"
 
     def test_webhook_callback_invalid_secret(self):
         headers = {

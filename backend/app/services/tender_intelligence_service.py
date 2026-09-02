@@ -10,12 +10,13 @@ from app.core.storage import storage_service
 from app.crud.crud_document import crud_document
 from app.crud.crud_tender import get_tender_by_id
 from app.crud.crud_tender_requirement import crud_tender_requirement
-from app.models.enums import RequirementType
+from app.models.enums import ProcessingStatus, RequirementType
 from app.schemas.ai_gateway import (
     AIGatewayResponse,
     AmbiguousClauseRequest,
     LLMClauseInterpretation,
 )
+from app.schemas.processing import ExtractionResult, PageExtractionResult
 from app.schemas.tender_clause import ClauseCandidate
 from app.schemas.tender_intelligence import (
     TenderAnalysisRequest,
@@ -37,13 +38,21 @@ from app.services.tender_requirement_normalizer import (
     TenderRequirementNormalizer,
     tender_requirement_normalizer,
 )
+from app.services.tender_section_detector import (
+    TenderSectionDetector,
+    tender_section_detector,
+)
+from app.services.verification_packaging_service import (
+    VerificationPackagingService,
+    package_verification_output,
+)
 
 logger = logging.getLogger("app.services.tender_intelligence_service")
 
 
 class TenderIntelligenceService:
     """
-    Core orchestrator for Phase 08 (Tender Intelligence).
+    Core orchestrator for Phase 08 (Tender Intelligence) & Phase 12.2 (Tender Flow).
     The deterministic pipeline is the primary path.
     The AI Gateway is invoked strictly when deterministic logic identifies an ambiguous clause.
     Enforces deterministic post-validation on LLM output to prevent hallucinations and conflicts.
@@ -54,10 +63,14 @@ class TenderIntelligenceService:
         clause_extractor: Optional[TenderClauseExtractor] = None,
         requirement_normalizer: Optional[TenderRequirementNormalizer] = None,
         gateway: Optional[AIGateway] = None,
+        section_detector: Optional[TenderSectionDetector] = None,
+        packaging_service: Optional[VerificationPackagingService] = None,
     ) -> None:
         self.clause_extractor = clause_extractor or tender_clause_extractor
         self.normalizer = requirement_normalizer or tender_requirement_normalizer
         self.ai_gateway = gateway or ai_gateway
+        self.section_detector = section_detector or tender_section_detector
+        self.packaging_service = packaging_service or VerificationPackagingService
 
     # -------------------------------------------------------------------------
     # 1. DETERMINISTIC POST-VALIDATION OF LLM OUTPUT
@@ -318,12 +331,12 @@ class TenderIntelligenceService:
             persistable = batch_result.persistable_only()
             if persistable:
                 req_creates = [req.to_tender_requirement_create() for req in persistable]
-                crud_tender_requirement.bulk_create(
+                crud_tender_requirement.upsert_requirements(
                     db=db,
                     tender_id=tender_id,
                     requirements_in=req_creates,
                 )
-                logger.info(f"Persisted {len(req_creates)} requirements to PostgreSQL for tender {tender_id}")
+                logger.info(f"Idempotently persisted {len(req_creates)} requirements to PostgreSQL for tender {tender_id}")
 
         return batch_result
 
@@ -373,19 +386,16 @@ class TenderIntelligenceService:
         request: Optional[TenderAnalysisRequest] = None,
     ) -> TenderComplianceProfileResponse:
         """
-        Executes the complete 12-step Tender Compliance Profile generation pipeline:
-        1. Load tender
-        2. Obtain processed document output from Document Engine / storage
-        3. Extract candidate clauses
-        4. Run deterministic requirement detection
-        5. Normalize requirements that can be reliably understood
-        6. Identify ambiguous clauses
-        7. Escalate ONLY ambiguous clauses to the Groq AI Gateway
-        8. Validate AI output using Pydantic
-        9. Run deterministic validation on AI output
-        10. Normalize all accepted requirements
-        11. Store requirements in PostgreSQL
-        12. Generate the Tender Compliance Profile
+        Executes the complete Phase 12.2 Tender Compliance Profile pipeline:
+        1. Load tender from database.
+        2. Obtain associated tender document from storage or raw text.
+        3. Run multi-format document processing (PDF/DOCX/XLSX + selective OCR).
+        4. Detect tender sections with page boundaries.
+        5. Extract candidate clauses and normalize requirements deterministically.
+        6. Selectively escalate ambiguous clauses to Groq AI Gateway with grounding validation.
+        7. Persist requirements idempotently into PostgreSQL.
+        8. Package canonical verification output (Phase 11.9).
+        9. Generate and return structured Tender Compliance Profile.
         """
         tender = get_tender_by_id(db, tender_id)
         if not tender:
@@ -402,11 +412,13 @@ class TenderIntelligenceService:
 
         # Obtain document content
         pages: List[Dict[str, Any]] = []
+        target_doc = None
+        extraction: Optional[ExtractionResult] = None
         if req_config.raw_text:
             pages = [{"page_number": 1, "text": req_config.raw_text}]
         else:
-            attached_docs = crud_document.list_by_tender(db, tender.id) if hasattr(crud_document, "list_by_tender") else []
-            target_doc = None
+            docs_tuple = crud_document.list_tender_documents(db, tender.id)
+            attached_docs = docs_tuple[0] if docs_tuple else []
             if req_config.document_id:
                 target_doc = crud_document.get_by_id(db, req_config.document_id)
             elif attached_docs:
@@ -414,9 +426,22 @@ class TenderIntelligenceService:
 
             if target_doc and target_doc.storage_path:
                 try:
-                    file_bytes = storage_service.download_file(target_doc.storage_path)
-                    extraction = document_processor.process(file_bytes)
-                    pages = [{"page_number": p.page_number, "text": p.text} for p in extraction.pages]
+                    file_bytes = storage_service.download(target_doc.storage_path)
+                    extraction = document_processor.process_document(
+                        file_bytes=file_bytes,
+                        mime_type=target_doc.mime_type,
+                        filename=target_doc.original_filename,
+                    )
+                    pages = extraction.to_traceable_pages()
+
+                    # Update document processing state in DB
+                    if target_doc.processing_status != ProcessingStatus.PROCESSED:
+                        crud_document.update_processing(
+                            db=db,
+                            document_id=target_doc.id,
+                            processing_status=ProcessingStatus.PROCESSED,
+                            extracted_data=extraction.model_dump(),
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to extract text from document {target_doc.id}: {e}")
 
@@ -424,13 +449,55 @@ class TenderIntelligenceService:
                 doc_text = f"TENDER TITLE: {tender.title}\n{tender.description or ''}"
                 pages = [{"page_number": 1, "text": doc_text}]
 
-        # Process pages with hybrid resolution and persist
+        # Ensure we have an ExtractionResult for section detection
+        if extraction is None:
+            fake_pages = [
+                PageExtractionResult(
+                    page_number=p.get("page_number", idx + 1),
+                    text=p.get("text", ""),
+                )
+                for idx, p in enumerate(pages)
+            ]
+            extraction = ExtractionResult(
+                format="PDF",
+                status="EXTRACTED",
+                page_count=len(fake_pages),
+                text="\n".join(p.get("text", "") for p in pages),
+                pages=fake_pages,
+            )
+
+        # Detect tender sections
+        detected_sections = self.section_detector.detect_sections(
+            extraction_result=extraction,
+            document_id=str(target_doc.id) if target_doc else None,
+        )
+
+        # Process pages with hybrid resolution and persist idempotently
         batch_result = self.process_tender_pages(
             pages=pages,
             tender_id=tender.id,
             db=db,
             persist=True,
         )
+
+
+        # Build Canonical Verification Package (Phase 11.9)
+        canonical_pkg = None
+        try:
+            canonical_pkg = self.packaging_service.package_verification_output(
+                document=target_doc,
+                sections=detected_sections.sections if hasattr(detected_sections, "sections") else detected_sections,
+                requirements=batch_result.requirements,
+                document_id=str(target_doc.id) if target_doc else None,
+                document_hash=getattr(target_doc, "sha256", None) if target_doc else None,
+                document_type="TENDER",
+                filename=getattr(target_doc, "original_filename", None) if target_doc else None,
+                file_size=getattr(target_doc, "file_size", None) if target_doc else None,
+                mime_type=getattr(target_doc, "mime_type", None) if target_doc else None,
+                total_pages=len(pages),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to assemble canonical packaging: {e}")
 
         persisted = crud_tender_requirement.get_by_tender(db, tender.id)
         det_reqs = [TenderRequirementResponse.model_validate(r) for r in persisted if r.parameters.get("resolution_method") != "AI_GATEWAY" and r.confidence >= 0.90]
@@ -448,6 +515,7 @@ class TenderIntelligenceService:
             ai_assisted_requirements=ai_reqs,
             unresolved_requirements=batch_result.unresolved_only(),
             requirements=[TenderRequirementResponse.model_validate(r) for r in persisted],
+            canonical_output=canonical_pkg,
         )
 
 
@@ -456,4 +524,5 @@ resolve_clause = tender_intelligence_service.resolve_clause
 process_tender_pages = tender_intelligence_service.process_tender_pages
 analyze_tender = tender_intelligence_service.analyze_tender
 get_compliance_profile = tender_intelligence_service.get_compliance_profile
+
 

@@ -20,6 +20,10 @@ try:
     from app.models.tender import Tender
     from app.models.tender_requirement import TenderRequirement
     from app.models.user import User
+    from app.models.verification import (
+        VerificationAuditEvent,
+        VerificationExecution,
+    )
 except ImportError:
     Bidder = None  # type: ignore
     TenderBidder = None  # type: ignore
@@ -30,6 +34,8 @@ except ImportError:
     Tender = None  # type: ignore
     TenderRequirement = None  # type: ignore
     User = None  # type: ignore
+    VerificationExecution = None  # type: ignore
+    VerificationAuditEvent = None  # type: ignore
 
 __all__ = [
     "User",
@@ -41,6 +47,8 @@ __all__ = [
     "ComplianceRequirement",
     "BidderEvidenceModel",
     "ComplianceResultModel",
+    "VerificationExecution",
+    "VerificationAuditEvent",
     "UserRole",
     "TenderStatus",
     "BidderStatus",
@@ -50,5 +58,6 @@ __all__ = [
     "DocumentProcessingStatus",
     "RequirementType",
 ]
+
 
 

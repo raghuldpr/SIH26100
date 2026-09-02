@@ -93,3 +93,18 @@ def require_role(*allowed_roles: UserRole):
         return current_user
 
     return role_checker
+
+
+def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    Optional authentication dependency.
+    Returns User if valid Bearer token is provided, None if no token provided,
+    or raises 401 if an invalid/expired token was provided.
+    """
+    if not token:
+        return None
+    return get_current_user(token=token, db=db)
+

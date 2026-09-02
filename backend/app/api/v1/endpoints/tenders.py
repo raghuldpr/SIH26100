@@ -11,7 +11,7 @@ from app.dependencies.auth import get_current_user, require_role
 from app.dependencies.database import get_db
 from app.models.enums import DocumentType, TenderStatus, UserRole
 from app.models.user import User
-from app.schemas.bidder import TenderBidderResponse
+from app.schemas.bidder import BidderCreate, TenderBidderResponse
 from app.schemas.common import PaginatedResponse, PaginationMeta, StandardResponse
 from app.schemas.document import DocumentResponse
 from app.schemas.tender import TenderCreate, TenderResponse, TenderUpdate
@@ -20,6 +20,8 @@ from app.schemas.tender_intelligence import (
     TenderComplianceProfileResponse,
 )
 from app.schemas.tender_requirement import TenderRequirementResponse
+from app.services.bidder_intake_service import bidder_intake_service
+
 from app.services.document_service import (
     list_tender_documents,
     upload_multiple_tender_documents,
@@ -201,8 +203,43 @@ def archive_tender(
 
 
 # ---------------------------------------------------------
-# PHASE 05A — TENDER ↔ BIDDER RELATIONSHIP ENDPOINTS
+# PHASE 05A / PHASE 12.3 — TENDER ↔ BIDDER RELATIONSHIP & INTAKE ENDPOINTS
 # ---------------------------------------------------------
+
+
+@tenders_router.post(
+    "/{tender_id}/bidders",
+    response_model=TenderBidderResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create and Associate Bidder with Tender",
+    description="Registers a new bidder and associates it with the specified tender in one step.",
+)
+def create_tender_bidder_endpoint(
+    tender_id: UUID,
+    bidder_in: BidderCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TenderBidderResponse:
+    """Creates a bidder organization and associates it with the tender."""
+    bidder, assignment = bidder_intake_service.create_tender_bidder(
+        db,
+        tender_id=tender_id,
+        bidder_in=bidder_in,
+        user_id=current_user.id if current_user.role == UserRole.BIDDER else None,
+    )
+    return TenderBidderResponse(
+        id=bidder.id,
+        bidder_id=bidder.id,
+        company_name=bidder.company_name,
+        registration_number=bidder.registration_number,
+        gst_number=bidder.gst_number,
+        pan_number=bidder.pan_number,
+        contact_person=bidder.contact_person,
+        email=bidder.email,
+        phone=bidder.phone,
+        status=bidder.status,
+        assignment_timestamp=assignment.created_at,
+    )
 
 
 @tenders_router.post(
@@ -238,6 +275,38 @@ def assign_bidder_to_tender_endpoint(
         status=bidder.status,
         assignment_timestamp=assignment.created_at,
     )
+
+
+@tenders_router.post(
+    "/{tender_id}/bidders/{bidder_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload and Intake Bidder Document for Tender",
+    description="Uploads, validates, classifies, and deterministically extracts evidence for a bidder participating in a tender.",
+)
+async def upload_tender_bidder_document_endpoint(
+    tender_id: UUID,
+    bidder_id: UUID,
+    file: UploadFile = File(..., description="Bidder compliance document (PAN, GST, Financial, Experience, etc.)"),
+    document_type: DocumentType = Form(
+        DocumentType.OTHER,
+        description="Document classification (e.g., PAN, GST, UDYAM, FINANCIAL_STATEMENT, EXPERIENCE_CERTIFICATE, OEM_AUTHORIZATION, OTHER)",
+    ),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentResponse:
+    """Uploads and processes a compliance document for a participating bidder."""
+    doc, _ = await bidder_intake_service.intake_bidder_document(
+        db=db,
+        bidder_id=bidder_id,
+        file=file,
+        document_type=document_type,
+        tender_id=tender_id,
+        process_document=True,
+    )
+    from app.services.document_service import enrich_document_response
+    return enrich_document_response(doc)
+
 
 
 @tenders_router.delete(

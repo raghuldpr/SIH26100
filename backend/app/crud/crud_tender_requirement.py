@@ -175,14 +175,86 @@ class CRUDTenderRequirement:
         logger.info(f"Deleted {count} requirements for tender_id={tender_id}")
         return count
 
+    def upsert_requirements(
+        self,
+        db: Session,
+        tender_id: Union[UUID, str],
+        requirements_in: List[Union[TenderRequirementCreate, Dict[str, Any]]],
+    ) -> List[TenderRequirement]:
+        """
+        Idempotently creates or updates tender requirements.
+        Prevents unbounded duplication when a tender or document is re-processed.
+        Matches existing requirements by (requirement_type, rule, normalized source_text prefix, page).
+        """
+        target_tender_id = UUID(str(tender_id)) if not isinstance(tender_id, UUID) else tender_id
+        existing_records = self.get_by_tender(db, target_tender_id)
+
+        def make_key(req_type: str, rule: str, text: Optional[str], page: Optional[int]) -> str:
+            cleaned_text = (text or "").strip()[:80].lower()
+            return f"{req_type.strip().upper()}::{rule.strip().upper()}::{page or 0}::{cleaned_text}"
+
+        existing_map: Dict[str, TenderRequirement] = {}
+        for obj in existing_records:
+            k = make_key(obj.requirement_type, obj.rule, obj.source_text, obj.source_page)
+            existing_map[k] = obj
+
+        result_objects: List[TenderRequirement] = []
+        for req in requirements_in:
+            if isinstance(req, dict):
+                req_data = req.copy()
+            else:
+                req_data = req.model_dump()
+
+            req_type = str(req_data["requirement_type"]).upper()
+            rule = str(req_data["rule"]).strip()
+            source_text = req_data.get("source_text")
+            source_page = req_data.get("source_page")
+            k = make_key(req_type, rule, source_text, source_page)
+
+            if k in existing_map:
+                # Update existing record in place
+                db_obj = existing_map[k]
+                db_obj.description = req_data["description"]
+                db_obj.parameters = req_data.get("parameters", {})
+                db_obj.mandatory = req_data.get("mandatory", True)
+                db_obj.confidence = float(req_data.get("confidence", 1.0))
+                db_obj.source_section = req_data.get("source_section")
+                result_objects.append(db_obj)
+            else:
+                # Create new record
+                db_obj = TenderRequirement(
+                    tender_id=target_tender_id,
+                    requirement_type=req_type,
+                    rule=rule,
+                    description=req_data["description"],
+                    parameters=req_data.get("parameters", {}),
+                    mandatory=req_data.get("mandatory", True),
+                    confidence=float(req_data.get("confidence", 1.0)),
+                    source_page=source_page,
+                    source_section=req_data.get("source_section"),
+                    source_text=source_text,
+                )
+                db.add(db_obj)
+                existing_map[k] = db_obj
+                result_objects.append(db_obj)
+
+        db.commit()
+        for obj in result_objects:
+            db.refresh(obj)
+
+        logger.info(f"Idempotently upserted {len(result_objects)} requirements for tender_id={target_tender_id}")
+        return result_objects
+
 
 crud_tender_requirement = CRUDTenderRequirement()
 
 # Convenience functional exports
 create_requirement = crud_tender_requirement.create
 bulk_create_requirements = crud_tender_requirement.bulk_create
+upsert_requirements = crud_tender_requirement.upsert_requirements
 get_requirement_by_id = crud_tender_requirement.get_by_id
 get_requirements_by_tender = crud_tender_requirement.get_by_tender
 update_requirement = crud_tender_requirement.update
 delete_requirement = crud_tender_requirement.delete
 delete_requirements_by_tender = crud_tender_requirement.delete_by_tender
+

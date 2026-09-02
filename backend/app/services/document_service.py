@@ -190,6 +190,7 @@ async def upload_bidder_document(
     bidder_id: UUID,
     file: UploadFile,
     document_type: DocumentType = DocumentType.OTHER,
+    tender_id: Optional[UUID] = None,
 ) -> DocumentResponse:
     """
     Validates, uploads, and persists a compliance document for a Bidder.
@@ -226,6 +227,7 @@ async def upload_bidder_document(
             mime_type=val_file.mime_type,
             file_size=val_file.file_size,
             sha256=val_file.sha256,
+            tender_id=tender_id,
             bidder_id=bidder_id,
             status=DocumentStatus.UPLOADED,
             processing_status=ProcessingStatus.NOT_PROCESSED,
@@ -243,6 +245,7 @@ async def upload_multiple_bidder_documents(
     bidder_id: UUID,
     files: List[UploadFile],
     document_type: DocumentType = DocumentType.OTHER,
+    tender_id: Optional[UUID] = None,
 ) -> List[DocumentResponse]:
     """
     Uploads multiple documents for a Bidder. Validates all files and persists records.
@@ -277,6 +280,7 @@ async def upload_multiple_bidder_documents(
                 mime_type=val_file.mime_type,
                 file_size=val_file.file_size,
                 sha256=val_file.sha256,
+                tender_id=tender_id,
                 bidder_id=bidder_id,
                 status=DocumentStatus.UPLOADED,
                 processing_status=ProcessingStatus.NOT_PROCESSED,
@@ -288,6 +292,7 @@ async def upload_multiple_bidder_documents(
             raise AppException(message=f"Failed to persist metadata for '{val_file.original_filename}'.")
 
     return results
+
 
 
 def list_tender_documents(
