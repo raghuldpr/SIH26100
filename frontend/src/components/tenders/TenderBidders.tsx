@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { listTenderBidders, TenderBidderItem } from "../../api/tenders";
-import { Button, Skeleton } from "../ui";
-import { Building2, Play } from "lucide-react";
+import { listTenderBidders, assignBidderToTender, TenderBidderItem } from "../../api/tenders";
+import { listBidders, BidderResponse } from "../../api/bidders";
+import { Button, Skeleton, Modal } from "../ui";
+import { Building2, Play, UserPlus, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { formatDate } from "../../lib/utils";
 
@@ -12,6 +13,11 @@ export interface TenderBiddersProps {
 export const TenderBidders: React.FC<TenderBiddersProps> = ({ tenderId }) => {
   const [bidders, setBidders] = useState<TenderBidderItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [availableBidders, setAvailableBidders] = useState<BidderResponse[]>([]);
+  const [selectedBidderId, setSelectedBidderId] = useState<string>("");
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const fetchBidders = useCallback(async () => {
     setIsLoading(true);
@@ -29,6 +35,41 @@ export const TenderBidders: React.FC<TenderBiddersProps> = ({ tenderId }) => {
     fetchBidders();
   }, [fetchBidders]);
 
+  const handleOpenAssignModal = async () => {
+    setAssignError(null);
+    setIsAssignModalOpen(true);
+    try {
+      const res = await listBidders({ page: 1, page_size: 50 });
+      const items = res.items || res.data || [];
+      // Filter out bidders already assigned
+      const assignedIds = new Set(bidders.map((b) => b.bidder_id));
+      const unassigned = items.filter((b) => !assignedIds.has(b.id));
+      setAvailableBidders(unassigned);
+      if (unassigned.length > 0) {
+        setSelectedBidderId(unassigned[0].id);
+      } else {
+        setSelectedBidderId("");
+      }
+    } catch (err: any) {
+      setAssignError("Failed to fetch available bidders from directory.");
+    }
+  };
+
+  const handleAssignBidder = async () => {
+    if (!selectedBidderId) return;
+    setIsAssigning(true);
+    setAssignError(null);
+    try {
+      await assignBidderToTender(tenderId, selectedBidderId);
+      setIsAssignModalOpen(false);
+      fetchBidders();
+    } catch (err: any) {
+      setAssignError(err.response?.data?.detail || "Failed to assign bidder to tender.");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   return (
     <div className="p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-subtle space-y-4">
       <div className="flex items-center justify-between pb-3 border-b border-outline-variant/20">
@@ -41,6 +82,14 @@ export const TenderBidders: React.FC<TenderBiddersProps> = ({ tenderId }) => {
             Bidder organizations enrolled in this tender for compliance verification
           </p>
         </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          leftIcon={<UserPlus className="h-3.5 w-3.5" />}
+          onClick={handleOpenAssignModal}
+        >
+          Assign Bidder
+        </Button>
       </div>
 
       {isLoading ? (
@@ -54,7 +103,7 @@ export const TenderBidders: React.FC<TenderBiddersProps> = ({ tenderId }) => {
         </div>
       ) : bidders.length === 0 ? (
         <div className="text-center py-6 text-xs text-on-surface-variant bg-surface-container-low/40 rounded-lg p-4">
-          No bidders assigned to this tender yet.
+          No bidders assigned to this tender yet. Click &quot;Assign Bidder&quot; above to enroll a bidder.
         </div>
       ) : (
         <div className="divide-y divide-outline-variant/20">
@@ -88,6 +137,70 @@ export const TenderBidders: React.FC<TenderBiddersProps> = ({ tenderId }) => {
           ))}
         </div>
       )}
+
+      {/* Assign Bidder Modal */}
+      <Modal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        title="Assign Bidder to Tender"
+        description="Select a registered bidder organization to enroll in this tender for compliance verification."
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button variant="ghost" size="sm" onClick={() => setIsAssignModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!selectedBidderId || isAssigning}
+              isLoading={isAssigning}
+              onClick={handleAssignBidder}
+            >
+              Enroll Bidder
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {assignError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2 text-xs text-red-400">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{assignError}</span>
+            </div>
+          )}
+
+          {availableBidders.length === 0 ? (
+            <div className="p-4 text-center text-xs text-on-surface-variant bg-surface-container-low rounded-lg space-y-2">
+              <p>No unassigned bidders available in directory.</p>
+              <Link to="/bidders">
+                <Button variant="secondary" size="sm" className="mt-2">
+                  Go to Bidders Directory
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-on-surface">
+                Select Bidder Organization
+              </label>
+              <select
+                className="w-full bg-surface-container border border-outline-variant/40 rounded-lg px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary"
+                value={selectedBidderId}
+                onChange={(e) => setSelectedBidderId(e.target.value)}
+              >
+                {availableBidders.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.company_name} (GST: {b.gst_number || "N/A"})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-on-surface-variant">
+                The selected bidder will be linked to this tender, allowing their submitted documents to be verified against the tender compliance profile.
+              </p>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

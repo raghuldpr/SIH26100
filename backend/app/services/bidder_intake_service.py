@@ -577,6 +577,65 @@ class BidderIntakeService:
             )
             persisted_evidences.append(ev_exp)
 
+        # E1. YEARS OF EXPERIENCE (Deterministic regex extraction)
+        years_exp = None
+        if raw_text:
+            exp_match = re.search(r"\b(\d+)\s+years?\s+(?:of\s+)?(?:relevant\s+|past\s+)?experience\b", raw_text, re.IGNORECASE)
+            if exp_match:
+                try:
+                    years_exp = int(exp_match.group(1))
+                except ValueError:
+                    pass
+
+        if years_exp is not None:
+            ev_years = self._upsert_evidence(
+                db=db,
+                bidder_id=doc.bidder_id,
+                field="years_of_experience",
+                value=years_exp,
+                source_document=doc.original_filename,
+                confidence=0.98,
+            )
+            persisted_evidences.append(ev_years)
+
+            ev_exp_obj = self._upsert_evidence(
+                db=db,
+                bidder_id=doc.bidder_id,
+                field="experience",
+                value={
+                    "years": years_exp,
+                    "years_of_experience": years_exp,
+                    "document_id": str(doc.id),
+                    "document_hash": doc.sha256,
+                    "confidence": 0.98,
+                },
+                source_document=doc.original_filename,
+                confidence=0.98,
+            )
+            persisted_evidences.append(ev_exp_obj)
+
+        # ---------------------------------------------------------------------
+        # F. OEM / MANUFACTURER AUTHORIZATION (Deterministic)
+        # ---------------------------------------------------------------------
+        if raw_text and ("oem authorization" in raw_text.lower() or "manufacturer authorization" in raw_text.lower() or "authorized partner" in raw_text.lower() or "maf" in raw_text.lower()):
+            oem_payload = {
+                "authorized": True,
+                "document_id": str(doc.id),
+                "document_hash": doc.sha256,
+                "document_type": doc_type_str,
+                "source_text": raw_text[:200],
+                "confidence": 0.95,
+            }
+            ev_oem = self._upsert_evidence(
+                db=db,
+                bidder_id=doc.bidder_id,
+                field="oem_authorization",
+                value=oem_payload,
+                source_document=doc.original_filename,
+                confidence=0.95,
+            )
+            persisted_evidences.append(ev_oem)
+
         db.commit()
         return persisted_evidences
 

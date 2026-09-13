@@ -5,6 +5,7 @@ from app.api.v1.endpoints.auth import auth_router
 from app.api.v1.endpoints.bidders import bidders_router
 from app.api.v1.endpoints.compliance import compliance_router
 from app.api.v1.endpoints.documents import documents_router
+from app.api.v1.endpoints.gem import gem_router
 from app.api.v1.endpoints.health import health_router
 from app.api.v1.endpoints.tenders import tenders_router
 from app.api.v1.endpoints.users import users_router
@@ -25,3 +26,4 @@ api_v1_router.include_router(documents_router)
 api_v1_router.include_router(verification_router)
 api_v1_router.include_router(compliance_router)
 api_v1_router.include_router(audit_router)
+api_v1_router.include_router(gem_router)

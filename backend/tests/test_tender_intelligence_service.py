@@ -40,7 +40,10 @@ def db_session():
 
 @pytest.fixture
 def sample_tender(db_session: Session) -> Tender:
-    """Sample tender record for persistence verification."""
+    """Sample tender record for persistence verification with proper teardown."""
+    from sqlalchemy import text
+    from app.db.session import engine
+
     tender = Tender(
         id=uuid.uuid4(),
         tender_number=f"GEM/2026/B/{uuid.uuid4().hex[:8].upper()}",
@@ -54,7 +57,12 @@ def sample_tender(db_session: Session) -> Tender:
     db_session.add(tender)
     db_session.commit()
     db_session.refresh(tender)
-    return tender
+    try:
+        yield tender
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM tender_requirements WHERE tender_id = :id"), {"id": tender.id})
+            conn.execute(text("DELETE FROM tenders WHERE id = :id"), {"id": tender.id})
 
 
 def create_ai_response(interpretation_dict: dict, success: bool = True) -> AIGatewayResponse:

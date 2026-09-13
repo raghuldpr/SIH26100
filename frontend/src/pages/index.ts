@@ -6,6 +6,7 @@ export * from "./TenderDetailsPage";
 export * from "./Bidders";
 export * from "./BidderDetailsPage";
 export * from "./Verification";
+export * from "./QuickVerification";
 export * from "./Reports";
 export * from "./Documents";
 export * from "./Settings";

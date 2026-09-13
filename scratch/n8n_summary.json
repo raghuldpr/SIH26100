@@ -1,0 +1,3011 @@
+{
+  "document_forensics_agent.json": {
+    "id": "SihForensicsAgentProto01",
+    "name": "🔹 SIH — Document Forensics Agent — Prototype",
+    "node_count": 13,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "for-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Document Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Forensics Test Webhook",
+        "id": "for-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/document-forensics",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Document Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Document Input Validation",
+        "id": "for-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Document Integrity Inspection"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "🔍 Document Integrity Inspection",
+        "id": "for-doc-integrity",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📄 PDF & Metadata Inspection"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "📄 PDF & Metadata Inspection",
+        "id": "for-pdf-metadata",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔤 OCR & Text Integrity Inspection"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "🔤 OCR & Text Integrity Inspection",
+        "id": "for-ocr-integrity",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔗 Duplicate & Hash Analysis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 7,
+        "name": "🔗 Duplicate & Hash Analysis",
+        "id": "for-duplicate-hash",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚖️ Forensics Risk & Status Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "⚖️ Forensics Risk & Status Synthesis",
+        "id": "for-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "📤 Standardized Result",
+        "id": "for-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "📤 Return HTTP Response",
+        "id": "for-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 11,
+        "name": "🛑 Forensics Error Fallback",
+        "id": "for-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": true
+      },
+      {
+        "index": 12,
+        "name": "Note - Card 1 Document Forensics",
+        "id": "for-card-1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 13,
+        "name": "Note - Card 2 Forensics Rules",
+        "id": "for-card-2",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "entity_resolution_agent.json": {
+    "id": "SihEntityResolutionAgentProto01",
+    "name": "🔹 SIH — Entity Resolution Agent — Prototype",
+    "node_count": 13,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "ent-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Entity Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Entity Resolution Test Webhook",
+        "id": "ent-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/entity-resolution",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Entity Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Entity Input Validation",
+        "id": "ent-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔤 Entity Name Normalization"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "🔤 Entity Name Normalization",
+        "id": "ent-name-normalization",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚖️ Identity Cross-Check Engine"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "⚖️ Identity Cross-Check Engine",
+        "id": "ent-cross-check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🆔 Identifier Consistency Engine"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "🆔 Identifier Consistency Engine",
+        "id": "ent-identifier-check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚠️ Duplicate & Conflict Detection"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 7,
+        "name": "⚠️ Duplicate & Conflict Detection",
+        "id": "ent-conflict-detection",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📊 Entity Resolution Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "📊 Entity Resolution Synthesis",
+        "id": "ent-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "📤 Standardized Result",
+        "id": "ent-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "📤 Return HTTP Response",
+        "id": "ent-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 11,
+        "name": "🛑 Entity Error Fallback",
+        "id": "ent-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": true
+      },
+      {
+        "index": 12,
+        "name": "Note - Card 1 Entity Resolution",
+        "id": "ent-card-1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 13,
+        "name": "Note - Card 2 Identity Rules",
+        "id": "ent-card-2",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "experience_eligibility_agent.json": {
+    "id": "SihExperienceAgentProto01",
+    "name": "🔹 SIH — Experience & Eligibility Agent — Prototype",
+    "node_count": 10,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "exp-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Experience Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Experience Test Webhook",
+        "id": "exp-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/experience-verification",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Experience Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Experience Input Validation",
+        "id": "exp-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚙️ Experience Rule Evaluation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "⚙️ Experience Rule Evaluation",
+        "id": "exp-rule-eval",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚖️ Experience Risk & Status Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "⚖️ Experience Risk & Status Synthesis",
+        "id": "exp-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "📤 Standardized Result",
+        "id": "exp-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 7,
+        "name": "📤 Return HTTP Response",
+        "id": "exp-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 8,
+        "name": "🛑 Experience Error Fallback",
+        "id": "exp-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "Note - Card 1 Experience Agent",
+        "id": "exp-card-1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 10,
+        "name": "Note - Card 2 Eligibility Rules",
+        "id": "exp-card-2",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "final_compliance_agent.json": {
+    "id": "SihFinalComplianceAgentProto01",
+    "name": "🔹 SIH — Final Compliance Agent — Prototype",
+    "node_count": 13,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "final-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Final Compliance Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Final Compliance Test Webhook",
+        "id": "final-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/final-compliance",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Final Compliance Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Final Compliance Input Validation",
+        "id": "final-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📋 Mandatory Agent Coverage Check"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "📋 Mandatory Agent Coverage Check",
+        "id": "final-agent-coverage",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚖️ Agent Status Evaluation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "⚖️ Agent Status Evaluation",
+        "id": "final-status-evaluation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚙️ Compliance Rule Engine"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "⚙️ Compliance Rule Engine",
+        "id": "final-compliance-rules",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📁 Evidence & Failure Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 7,
+        "name": "📁 Evidence & Failure Synthesis",
+        "id": "final-evidence-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🏆 Final Decision Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "🏆 Final Decision Synthesis",
+        "id": "final-decision-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "📤 Standardized Result",
+        "id": "final-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "📤 Return HTTP Response",
+        "id": "final-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 11,
+        "name": "🛑 Final Error Fallback",
+        "id": "final-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": true
+      },
+      {
+        "index": 12,
+        "name": "Note - Card 1 Final Compliance",
+        "id": "final-card-1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 13,
+        "name": "Note - Card 2 Decision Rules",
+        "id": "final-card-2",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "financial_verification_agent.json": {
+    "id": "SihFinancialAgentProto01",
+    "name": "🔹 SIH — Financial Verification Agent — Prototype",
+    "node_count": 11,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "fin-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Financial Input & Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Financial Test Webhook",
+        "id": "fin-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/financial-verification",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Financial Input & Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Financial Input & Validation",
+        "id": "fin-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🏛 Mock Financial Registry"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "🏛 Mock Financial Registry",
+        "id": "fin-mock-registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚙️ Deterministic Financial Calculations"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "⚙️ Deterministic Financial Calculations",
+        "id": "fin-calculations",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚖️ Financial Risk & Status Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "⚖️ Financial Risk & Status Synthesis",
+        "id": "fin-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 7,
+        "name": "📤 Standardized Result",
+        "id": "fin-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "📤 Return HTTP Response",
+        "id": "fin-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 9,
+        "name": "🛑 Financial Error Fallback",
+        "id": "fin-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "Note - Card 1 Financial Agent",
+        "id": "fin-card-1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 11,
+        "name": "Note - Card 2 Deterministic Rules",
+        "id": "fin-card-2",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "gst_verification_agent.json": {
+    "id": "SihGstAgentProto01",
+    "name": "🔹 SIH — GST Verification Agent — Prototype",
+    "node_count": 16,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "gst-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 GST Test Webhook",
+        "id": "gst-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/gst-verification",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Input Validation",
+        "id": "gst-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🤖 GST AI Agent"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "🤖 GST AI Agent",
+        "id": "gst-ai-agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "model": null,
+          "options": {
+            "systemMessage": "You are a GST verification specialist for a procurement bid compliance system.\n\nAnalyze the supplied bidder GST information and available evidence.\n\nDetermine:\n- GSTIN validity\n- GSTIN structural correctness\n- legal/business name\n- registration status\n- taxpayer type\n- jurisdiction\n- filing/compliance indicators when evidence exists\n- inconsistencies or suspicious information\n\nDo not invent real government verification.\n\nFor this prototype, registry verification is MOCK verification.\n\nReturn only the structured verification result requested by the output schema."
+          }
+        },
+        "next_nodes": [
+          "🏛 Mock GST Registry"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 5,
+        "name": "⚡ Groq Chat Model",
+        "id": "gst-groq-model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "credentials": {
+          "groqApi": {
+            "id": "groq_api_credential",
+            "name": "Groq Account (Manual Config Required)"
+          }
+        },
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "model": "llama-3.3-70b-versatile",
+          "options": {}
+        },
+        "next_nodes": [
+          "🤖 GST AI Agent"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 6,
+        "name": "📋 Structured Output Parser",
+        "id": "gst-output-parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "model": null,
+          "options": null
+        },
+        "next_nodes": [
+          "🤖 GST AI Agent"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 7,
+        "name": "🏛 Mock GST Registry",
+        "id": "gst-mock-registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚙️ Deterministic GST Format Validation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "⚙️ Deterministic GST Format Validation",
+        "id": "gst-deterministic-format",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📊 Confidence & Risk Calculation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "📊 Confidence & Risk Calculation",
+        "id": "gst-confidence-calc",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "📤 Standardized Result",
+        "id": "gst-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 11,
+        "name": "📤 Return HTTP Response",
+        "id": "gst-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 12,
+        "name": "🛑 GST Error Fallback",
+        "id": "gst-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 13,
+        "name": "Note - Input & Trigger",
+        "id": "gst-note-input",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 14,
+        "name": "Note - AI Analysis",
+        "id": "gst-note-ai",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 15,
+        "name": "Note - Registry & Deterministic",
+        "id": "gst-note-registry",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 16,
+        "name": "Note - Result & Reliability",
+        "id": "gst-note-output",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "master_orchestrator_prototype.json": {
+    "id": "SihMasterOrchProto01",
+    "name": "🚀 SIH — MASTER ORCHESTRATOR — Prototype",
+    "node_count": 35,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "📥 BID VERIFICATION REQUEST",
+        "id": "node-webhook-input",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/bid-verification",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Validate Verification Request"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "🔍 Validate Verification Request",
+        "id": "node-validate-request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "✅ Request Valid?"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 3,
+        "name": "✅ Request Valid?",
+        "id": "node-if-valid",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "cond-valid",
+                "leftValue": "={{ $json.valid }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        },
+        "next_nodes": [
+          "🧠 Agent Selection Engine",
+          "🛑 Invalid Request Response"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 4,
+        "name": "🛑 Invalid Request Response",
+        "id": "node-invalid-response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 RETURN VERIFICATION RESULT"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "🧠 Agent Selection Engine",
+        "id": "node-agent-selection",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🧭 Verification Group Router"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "🧭 Verification Group Router",
+        "id": "node-group-router",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "rules": 7
+        },
+        "next_nodes": [
+          "🧠 Tender Intelligence Agent",
+          "🏛 Statutory Verification Agent",
+          "💰 Financial Verification Agent",
+          "🏗 Experience & Eligibility Agent",
+          "🔍 Document Forensics Agent",
+          "🔗 Entity Resolution Agent",
+          "⚠️ Risk Intelligence Agent"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 7,
+        "name": "🧠 Tender Intelligence Agent",
+        "id": "node-child-tender",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihTenderIntelligenceAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "📦 Collect Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 8,
+        "name": "🏛 Statutory Verification Agent",
+        "id": "node-child-statutory",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🧾 GST Verification Agent",
+          "🪪 PAN Verification Agent",
+          "🏭 Udyam Verification Agent"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "🧾 GST Verification Agent",
+        "id": "node-child-gst",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihGstAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "🔗 Merge Statutory Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 10,
+        "name": "🪪 PAN Verification Agent",
+        "id": "node-child-pan",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihPanAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "🔗 Merge Statutory Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 11,
+        "name": "🏭 Udyam Verification Agent",
+        "id": "node-child-udyam",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihUdyamAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "🔗 Merge Statutory Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 12,
+        "name": "🔗 Merge Statutory Results",
+        "id": "node-merge-statutory",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📦 Collect Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 13,
+        "name": "💰 Financial Verification Agent",
+        "id": "node-child-financial",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihFinancialAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "📦 Collect Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 14,
+        "name": "🏗 Experience & Eligibility Agent",
+        "id": "node-child-experience",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihExperienceAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "📦 Collect Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 15,
+        "name": "🔍 Document Forensics Agent",
+        "id": "node-child-forensics",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihForensicsAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "📦 Collect Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 16,
+        "name": "🔗 Entity Resolution Agent",
+        "id": "node-child-entity",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihEntityResolutionAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "📦 Collect Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 17,
+        "name": "⚠️ Risk Intelligence Agent",
+        "id": "node-child-risk",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihRiskIntelligenceAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "📦 Collect Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 18,
+        "name": "📦 Collect Agent Results",
+        "id": "node-merge-results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🏆 Final Compliance Agent"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 19,
+        "name": "🏆 Final Compliance Agent",
+        "id": "node-child-final",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "workflowId": {
+            "__rl": true,
+            "value": "SihFinalComplianceAgentProto01",
+            "mode": "id"
+          }
+        },
+        "next_nodes": [
+          "📋 Normalize Agent Results"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 20,
+        "name": "📋 Normalize Agent Results",
+        "id": "node-normalize-results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚠️ Prototype Risk Aggregator"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 21,
+        "name": "⚠️ Prototype Risk Aggregator",
+        "id": "node-risk-aggregator",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🏆 Prototype Compliance Decision"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 22,
+        "name": "🏆 Prototype Compliance Decision",
+        "id": "node-compliance-decision",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Build Final Verification Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 23,
+        "name": "📤 Build Final Verification Response",
+        "id": "node-build-response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 RETURN VERIFICATION RESULT"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 24,
+        "name": "📤 RETURN VERIFICATION RESULT",
+        "id": "node-return-result",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 25,
+        "name": "🛑 Workflow Error Handler",
+        "id": "node-error-handler",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 RETURN VERIFICATION RESULT"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 26,
+        "name": "Note - Card 1 Master Orchestrator",
+        "id": "card-1-master-orchestrator",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 27,
+        "name": "Note - Card 2 Input Validation",
+        "id": "card-2-input-validation",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 28,
+        "name": "Note - Card 3 Intelligent Routing",
+        "id": "card-3-intelligent-routing",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 29,
+        "name": "Note - Card 4 Statutory",
+        "id": "card-4-statutory",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 30,
+        "name": "Note - Card 5 Financial",
+        "id": "card-5-financial",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 31,
+        "name": "Note - Card 6 Document Intelligence",
+        "id": "card-6-document-intelligence",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 32,
+        "name": "Note - Card 7 Entity Resolution",
+        "id": "card-7-entity-resolution",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 33,
+        "name": "Note - Card 8 Risk Intelligence",
+        "id": "card-8-risk-intelligence",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 34,
+        "name": "Note - Card 9 Final Decision",
+        "id": "card-9-final-decision",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 35,
+        "name": "Note - Card 10 Reliability",
+        "id": "card-10-reliability",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "pan_verification_agent.json": {
+    "id": "SihPanAgentProto01",
+    "name": "🔹 SIH — PAN Verification Agent — Prototype",
+    "node_count": 16,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "pan-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 PAN Test Webhook",
+        "id": "pan-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/pan-verification",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Input Validation",
+        "id": "pan-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🤖 PAN AI Agent"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "🤖 PAN AI Agent",
+        "id": "pan-ai-agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "model": null,
+          "options": {
+            "systemMessage": "You are a PAN verification specialist for a procurement bid compliance system.\n\nAnalyze the supplied PAN and bidder information.\n\nCheck:\n- PAN format\n- PAN structural validity\n- registered name from available evidence\n- consistency with bidder name\n- suspicious/inconsistent information\n\nReal government verification is NOT available in this prototype.\n\nUse mock registry information where required.\n\nNever claim that a real government portal was accessed.\n\nReturn only the structured verification result requested by the output schema."
+          }
+        },
+        "next_nodes": [
+          "🏛 Mock PAN Registry"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 5,
+        "name": "⚡ Groq Chat Model",
+        "id": "pan-groq-model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "credentials": {
+          "groqApi": {
+            "id": "groq_api_credential",
+            "name": "Groq Account (Manual Config Required)"
+          }
+        },
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "model": "llama-3.3-70b-versatile",
+          "options": {}
+        },
+        "next_nodes": [
+          "🤖 PAN AI Agent"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 6,
+        "name": "📋 Structured Output Parser",
+        "id": "pan-output-parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "model": null,
+          "options": null
+        },
+        "next_nodes": [
+          "🤖 PAN AI Agent"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 7,
+        "name": "🏛 Mock PAN Registry",
+        "id": "pan-mock-registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚙️ PAN Format Validation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "⚙️ PAN Format Validation",
+        "id": "pan-format-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔗 Name Consistency Check"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "🔗 Name Consistency Check",
+        "id": "pan-name-check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "📤 Standardized Result",
+        "id": "pan-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 11,
+        "name": "📤 Return HTTP Response",
+        "id": "pan-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 12,
+        "name": "🛑 PAN Error Fallback",
+        "id": "pan-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 13,
+        "name": "Note - Input & Trigger",
+        "id": "pan-note-input",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 14,
+        "name": "Note - AI Analysis",
+        "id": "pan-note-ai",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 15,
+        "name": "Note - Registry & Format",
+        "id": "pan-note-registry",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 16,
+        "name": "Note - Result & Reliability",
+        "id": "pan-note-output",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "risk_intelligence_agent.json": {
+    "id": "SihRiskIntelligenceAgentProto01",
+    "name": "🔹 SIH — Risk Intelligence Agent — Prototype",
+    "node_count": 13,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "risk-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Risk Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Risk Intelligence Test Webhook",
+        "id": "risk-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/risk-intelligence",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Risk Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Risk Input Validation",
+        "id": "risk-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📦 Agent Result Collector"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "📦 Agent Result Collector",
+        "id": "risk-agent-collector",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Risk Signal Extraction"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "🔍 Risk Signal Extraction",
+        "id": "risk-signal-extraction",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📊 Confidence Risk Evaluation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "📊 Confidence Risk Evaluation",
+        "id": "risk-confidence-evaluation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🧮 Cumulative Risk Scoring"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 7,
+        "name": "🧮 Cumulative Risk Scoring",
+        "id": "risk-score-calculation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚖️ Risk Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "⚖️ Risk Synthesis",
+        "id": "risk-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "📤 Standardized Result",
+        "id": "risk-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "📤 Return HTTP Response",
+        "id": "risk-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 11,
+        "name": "🛑 Risk Error Fallback",
+        "id": "risk-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": true
+      },
+      {
+        "index": 12,
+        "name": "Note - Card 1 Risk Agent",
+        "id": "risk-card-1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 13,
+        "name": "Note - Card 2 Scoring Rules",
+        "id": "risk-card-2",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "tender_intelligence_agent.json": {
+    "id": "SihTenderIntelligenceAgentProto01",
+    "name": "🔹 SIH — Tender Intelligence Agent — Prototype",
+    "node_count": 12,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "tender-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Tender Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Tender Intelligence Test Webhook",
+        "id": "tender-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/tender-intelligence",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Tender Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Tender Input Validation",
+        "id": "tender-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚙️ Requirement Extraction & Normalization"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "⚙️ Requirement Extraction & Normalization",
+        "id": "tender-req-extraction",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📊 Requirement Coverage Analysis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 5,
+        "name": "📊 Requirement Coverage Analysis",
+        "id": "tender-coverage-analysis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚠️ Ambiguity & Conflict Evaluation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 6,
+        "name": "⚠️ Ambiguity & Conflict Evaluation",
+        "id": "tender-ambiguity-evaluation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📊 Tender Intelligence Synthesis"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 7,
+        "name": "📊 Tender Intelligence Synthesis",
+        "id": "tender-synthesis",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "📤 Standardized Result",
+        "id": "tender-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "📤 Return HTTP Response",
+        "id": "tender-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 10,
+        "name": "🛑 Tender Error Fallback",
+        "id": "tender-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": true
+      },
+      {
+        "index": 11,
+        "name": "Note - Card 1 Tender Intelligence",
+        "id": "tender-card-1",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 12,
+        "name": "Note - Card 2 Extraction Rules",
+        "id": "tender-card-2",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  },
+  "udyam_verification_agent.json": {
+    "id": "SihUdyamAgentProto01",
+    "name": "🔹 SIH — UDYAM/MSME Verification Agent — Prototype",
+    "node_count": 16,
+    "nodes": [
+      {
+        "index": 1,
+        "name": "Execute Workflow Trigger",
+        "id": "udyam-trigger-exec",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔍 Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 2,
+        "name": "📥 Udyam Test Webhook",
+        "id": "udyam-trigger-webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "httpMethod": "POST",
+          "path": "sih26100/udyam-verification",
+          "responseMode": "responseNode"
+        },
+        "next_nodes": [
+          "🔍 Input Validation"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 3,
+        "name": "🔍 Input Validation",
+        "id": "udyam-input-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🤖 UDYAM AI Agent"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 4,
+        "name": "🤖 UDYAM AI Agent",
+        "id": "udyam-ai-agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "credentials": null,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
+        "onError": "continueRegularOutput",
+        "params_summary": {
+          "model": null,
+          "options": {
+            "systemMessage": "You are an Udyam/MSME verification specialist for a procurement bid compliance system.\n\nAnalyze:\n- Udyam registration number\n- registered business name\n- MSME classification information\n- registration status\n- consistency with bidder identity\n- suspicious or inconsistent evidence\n\nFor this prototype, registry verification is MOCK verification.\n\nNever claim that a real government database was accessed.\n\nReturn only the structured verification result requested by the output schema."
+          }
+        },
+        "next_nodes": [
+          "🏛 Mock MSME Registry"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 5,
+        "name": "⚡ Groq Chat Model",
+        "id": "udyam-groq-model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "credentials": {
+          "groqApi": {
+            "id": "groq_api_credential",
+            "name": "Groq Account (Manual Config Required)"
+          }
+        },
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "model": "llama-3.3-70b-versatile",
+          "options": {}
+        },
+        "next_nodes": [
+          "🤖 UDYAM AI Agent"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 6,
+        "name": "📋 Structured Output Parser",
+        "id": "udyam-output-parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {
+          "model": null,
+          "options": null
+        },
+        "next_nodes": [
+          "🤖 UDYAM AI Agent"
+        ],
+        "has_jsCode": false
+      },
+      {
+        "index": 7,
+        "name": "🏛 Mock MSME Registry",
+        "id": "udyam-mock-registry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "⚙️ Udyam Format Validation"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 8,
+        "name": "⚙️ Udyam Format Validation",
+        "id": "udyam-format-validation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "🔗 Name Consistency Check"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 9,
+        "name": "🔗 Name Consistency Check",
+        "id": "udyam-name-check",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 10,
+        "name": "📤 Standardized Result",
+        "id": "udyam-standardized-result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Return HTTP Response"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 11,
+        "name": "📤 Return HTTP Response",
+        "id": "udyam-respond-webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 12,
+        "name": "🛑 Udyam Error Fallback",
+        "id": "udyam-error-fallback",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [
+          "📤 Standardized Result"
+        ],
+        "has_jsCode": true
+      },
+      {
+        "index": 13,
+        "name": "Note - Input & Trigger",
+        "id": "udyam-note-input",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 14,
+        "name": "Note - AI Analysis",
+        "id": "udyam-note-ai",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 15,
+        "name": "Note - Registry & Format",
+        "id": "udyam-note-registry",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      },
+      {
+        "index": 16,
+        "name": "Note - Result & Reliability",
+        "id": "udyam-note-output",
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "credentials": null,
+        "retryOnFail": null,
+        "maxTries": null,
+        "waitBetweenTries": null,
+        "onError": null,
+        "params_summary": {},
+        "next_nodes": [],
+        "has_jsCode": false
+      }
+    ]
+  }
+}

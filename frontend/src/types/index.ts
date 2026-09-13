@@ -244,6 +244,11 @@ export interface TenderRequirementResponse {
   requirement_type: string;
   rule: string;
   description: string;
+  field?: string;
+  operator?: string;
+  required_value?: any;
+  resolution_method?: string;
+  status?: string;
   parameters: Record<string, any>;
   mandatory: boolean;
   confidence: number;
@@ -283,16 +288,35 @@ export interface VerificationTriggerRequest {
   metadata?: Record<string, any>;
 }
 
+export interface StructuredEvidenceItem {
+  source_document?: string | null;
+  page_number?: number | null;
+  field?: string | null;
+  section?: string | null;
+  detected_value?: any;
+  normalized_value?: any;
+  expected_value?: any;
+  requirement?: string | null;
+  evidence_text?: string | null;
+  reference?: string | null;
+  confidence?: number | null;
+  evidence_id?: string | null;
+  document_id?: string | null;
+}
+
 export interface N8nAgentResult {
   agent: string;
   agent_name?: string;
+  agent_id?: string;
   status: AgentStatus | string;
+  normalized_status?: "VERIFIED" | "FAILED" | "UNRESOLVED" | "ERROR" | "NOT_APPLICABLE" | string;
   verification_id?: string;
   tender_id?: string;
   bidder_id?: string;
   decision?: string;
+  result?: string;
   confidence?: number;
-  evidence?: Record<string, any>;
+  evidence?: StructuredEvidenceItem[] | Record<string, any>;
   evidence_ids?: string[];
   requirement_ids?: string[];
   source_documents?: string[];
@@ -300,6 +324,7 @@ export interface N8nAgentResult {
   issues?: string[];
   errors?: string[];
   reason?: string;
+  summary?: string;
   risk_level: RiskLevel | string;
   execution_metadata?: Record<string, any>;
   timestamp?: string;
@@ -311,13 +336,15 @@ export interface RequirementEvaluation {
   description?: string;
   mandatory: boolean;
   decision: RequirementCompliance | string;
+  status?: "PASS" | "FAIL" | "UNRESOLVED" | string;
   confidence?: number;
   agent?: string;
+  evidence?: StructuredEvidenceItem[];
   evidence_ids?: string[];
   document_ids?: string[];
-  source_page?: number;
-  source_section?: string;
-  source_text?: string;
+  source_page?: number | null;
+  source_section?: string | null;
+  source_text?: string | null;
   reason?: string;
   findings?: string[];
 }
@@ -338,6 +365,146 @@ export interface VerificationComplianceSummary {
   unverified: number;
 }
 
+export interface AgentConfidenceItem {
+  agent_id: string;
+  confidence: number | null;
+  status: string;
+}
+
+export interface RequirementConfidenceItem {
+  requirement_id: string;
+  rule?: string;
+  confidence: number | null;
+  status: string;
+}
+
+export interface UnresolvedConfidenceItem {
+  type: "AGENT" | "REQUIREMENT" | string;
+  requirement_id?: string;
+  rule?: string;
+  agent_id?: string;
+  status: string;
+  confidence?: number | null;
+  reason?: string;
+}
+
+export interface VerificationConfidenceBreakdown {
+  overall_confidence: number | null;
+  method: string;
+  formula?: string;
+  inputs: number[];
+  calculated_confidence: number | null;
+  agent_confidence: AgentConfidenceItem[];
+  requirement_confidence: RequirementConfidenceItem[];
+  unresolved_items: UnresolvedConfidenceItem[];
+}
+
+export interface CrossVerificationValueItem {
+  source_document?: string | null;
+  page_number?: number | null;
+  value: any;
+  evidence_id?: string | null;
+}
+
+export interface CrossVerificationCheckItem {
+  check_id: string;
+  field: string;
+  status: "CONSISTENT" | "INCONSISTENT" | "UNRESOLVED" | string;
+  values: CrossVerificationValueItem[];
+  reason: string;
+}
+
+export interface VerificationCrossVerification {
+  overall_status: "CONSISTENT" | "INCONSISTENT" | "UNRESOLVED" | string;
+  checks: CrossVerificationCheckItem[];
+}
+
+export interface ForensicAnomalyItem {
+  anomaly_id: string;
+  anomaly_type: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | string;
+  confidence?: number | null;
+  description: string;
+  source_document?: string | null;
+  document_id?: string | null;
+  page_number?: number | null;
+  affected_field?: string | null;
+  evidence?: Record<string, any>;
+}
+
+export interface ForensicDocumentResult {
+  document_id?: string | null;
+  source_document: string;
+  status: "CLEAN" | "SUSPICIOUS" | "ANOMALY" | "UNRESOLVED" | string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN" | string;
+  confidence?: number | null;
+  sha256?: string | null;
+  anomalies: ForensicAnomalyItem[];
+}
+
+export interface VerificationDocumentForensics {
+  overall_status: "CLEAN" | "SUSPICIOUS" | "ANOMALY" | "UNRESOLVED" | string;
+  overall_risk: "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN" | string;
+  documents: ForensicDocumentResult[];
+  summary?: string | null;
+}
+
+export interface DocumentReference {
+  document_id?: string | null;
+  source_document?: string | null;
+  page_number?: number | null;
+}
+
+export interface DocumentSimilarityComparison {
+  comparison_id: string;
+  document_a: DocumentReference;
+  document_b: DocumentReference;
+  document_a_page?: number | null;
+  document_b_page?: number | null;
+  comparison_type: "EXACT_DUPLICATE" | "CONTENT_SIMILARITY" | string;
+  similarity_score: number;
+  threshold: number;
+  status: "EXACT_DUPLICATE" | "HIGH_SIMILARITY" | "MODERATE_SIMILARITY" | "LOW_SIMILARITY" | string;
+  reason: string;
+}
+
+export interface VerificationDocumentSimilarity {
+  overall_status: "NO_COMPARISON" | "SIMILARITY_FOUND" | "EXACT_DUPLICATE" | "INSUFFICIENT_REFERENCE_CORPUS" | string;
+  comparisons: DocumentSimilarityComparison[];
+  reason?: string | null;
+}
+
+export interface AppliedPolicyRule {
+  rule_id: string;
+  trigger: string;
+  action: "QUALIFIED" | "NOT_QUALIFIED" | "MANUAL_REVIEW" | string;
+  reason: string;
+}
+
+export interface PolicyFindingItem {
+  finding_id: string;
+  finding_type:
+    | "MANDATORY_REQUIREMENT_FAILURE"
+    | "MANDATORY_REQUIREMENT_UNRESOLVED"
+    | "CRITICAL_AGENT_FAILURE"
+    | "FORENSIC_ANOMALY"
+    | "CROSS_VERIFICATION_INCONSISTENCY"
+    | "COMPLIANCE_CHECK_FAILURE"
+    | "WARNING"
+    | string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | string;
+  source: string;
+  description: string;
+}
+
+export interface VerificationCompliancePolicy {
+  final_status: "QUALIFIED" | "NOT_QUALIFIED" | "MANUAL_REVIEW" | string;
+  blocking_findings: PolicyFindingItem[];
+  review_findings: PolicyFindingItem[];
+  warnings: string[];
+  applied_rules: AppliedPolicyRule[];
+}
+
 export interface VerificationResponse {
   id?: string;
   verification_id: string;
@@ -351,9 +518,30 @@ export interface VerificationResponse {
   risk_score: number;
   risk_level: RiskLevel | string;
   overall_confidence?: number;
+  confidence_breakdown?: VerificationConfidenceBreakdown;
+  cross_verification?: VerificationCrossVerification;
+  document_forensics?: VerificationDocumentForensics;
+  document_similarity?: VerificationDocumentSimilarity;
+  compliance_policy?: VerificationCompliancePolicy;
   result_hash?: string;
   reasons: string[];
+  decision_explanation?: string;
+  decision_factors?: Array<{
+    type: string;
+    requirement_id?: string;
+    rule?: string;
+    mandatory?: boolean;
+    status?: string;
+    reason?: string;
+    evidence?: StructuredEvidenceItem[];
+    agent_id?: string;
+  }>;
+  passed_agents?: string[];
+  failed_agents?: string[];
+  review_agents?: string[];
+  passed_requirements?: string[];
   failed_requirements: string[];
+  review_requirements?: string[];
   warnings: string[];
   inconclusive_checks?: string[];
   missing_documents?: string[];
@@ -375,7 +563,12 @@ export type VerificationExecutionSummary = VerificationResponse;
 
 export interface VerificationHistoryItem {
   verification_id: string;
+  tender_id?: string;
+  tender_number?: string;
+  bidder_id?: string;
+  bidder_name?: string;
   status: string;
+  decision?: VerificationDecision | string;
   overall_compliance?: OverallCompliance | string;
   risk_level?: RiskLevel | string;
   created_at: string;
@@ -413,3 +606,34 @@ export interface N8nVerificationPayload {
   metadata?: Record<string, any>;
   timestamp?: string;
 }
+
+export interface GeMTenderMetadata {
+  bid_id: string;
+  title: string;
+  organization: string;
+  department?: string;
+  category?: string;
+  tender_type?: string;
+  published_date?: string;
+  bid_end_date?: string;
+  estimated_value?: number;
+  location?: string;
+  status?: string;
+  source: string;
+  document_available: boolean;
+  document_url?: string;
+  document_name?: string;
+  raw_details?: Record<string, any>;
+}
+
+export interface GeMLookupResponse {
+  status: "found" | "already_imported" | "unavailable" | "invalid_bid_id";
+  bid_id: string;
+  already_imported: boolean;
+  existing_tender_id?: string;
+  existing_tender?: TenderResponse;
+  gem_data?: GeMTenderMetadata;
+  message?: string;
+  can_manual_upload: boolean;
+}
+

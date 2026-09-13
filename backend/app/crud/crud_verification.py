@@ -29,7 +29,12 @@ from app.schemas.verification import (
     RequirementEvaluation,
     RiskLevelEnum,
     VerificationComplianceSummary,
+    VerificationConfidenceBreakdown,
+    VerificationCrossVerification,
     VerificationDecisionEnum,
+    VerificationDocumentForensics,
+    VerificationDocumentSimilarity,
+    VerificationCompliancePolicy,
     VerificationHistoryItem,
     VerificationResponse,
     VerificationRiskAssessment,
@@ -267,8 +272,16 @@ class CRUDVerification:
             else str(resp.risk_level) if resp.risk_level else None
         )
         execution.risk_score = resp.risk_score
-        execution.overall_confidence = resp.overall_confidence
-        execution.compliance_summary = resp.summary.model_dump() if resp.summary else None
+        summary_dict = resp.summary.model_dump() if resp.summary else {}
+        if resp.document_forensics:
+            summary_dict["document_forensics"] = resp.document_forensics.model_dump()
+        if resp.document_similarity:
+            summary_dict["document_similarity"] = resp.document_similarity.model_dump()
+        if resp.compliance_policy:
+            summary_dict["compliance_policy"] = resp.compliance_policy.model_dump()
+        if resp.raw_response:
+            summary_dict["raw_response"] = resp.raw_response
+        execution.compliance_summary = summary_dict
         execution.requirements = [r.model_dump() for r in resp.requirements]
         execution.agent_results = [a.model_dump() for a in resp.agent_results]
         execution.risk_assessment = resp.risk.model_dump() if resp.risk else None
@@ -450,6 +463,136 @@ class CRUDVerification:
 
         resolved_bidder_name = bidder_name or f"Bidder-{str(execution.bidder_id)[:8]}"
 
+        def is_agent_identifier(val: str) -> bool:
+            if not isinstance(val, str):
+                return False
+            v = val.strip().upper()
+            return v.endswith("_AGENT")
+
+        passed_agents: List[str] = [
+            ag.agent for ag in reconstructed_agents
+            if ag.status and ag.status.upper() in {"PASS", "VERIFIED", "QUALIFIED"} and is_agent_identifier(ag.agent)
+        ]
+        failed_agents: List[str] = [
+            ag.agent for ag in reconstructed_agents
+            if ag.status and ag.status.upper() in {"FAIL", "FAILED", "ERROR", "NOT_VERIFIED"} and is_agent_identifier(ag.agent)
+        ]
+        review_agents: List[str] = [
+            ag.agent for ag in reconstructed_agents
+            if ag.status and ag.status.upper() not in {"PASS", "VERIFIED", "QUALIFIED", "FAIL", "FAILED", "ERROR", "NOT_VERIFIED"} and is_agent_identifier(ag.agent)
+        ]
+
+        passed_requirements: List[str] = [
+            rq.rule or rq.requirement_id for rq in reconstructed_reqs
+            if rq.decision == RequirementComplianceEnum.COMPLIANT and not is_agent_identifier(rq.rule or rq.requirement_id)
+        ]
+        failed_requirements: List[str] = [
+            rq.rule or rq.requirement_id for rq in reconstructed_reqs
+            if rq.decision == RequirementComplianceEnum.NON_COMPLIANT and not is_agent_identifier(rq.rule or rq.requirement_id)
+        ]
+        review_requirements: List[str] = [
+            rq.rule or rq.requirement_id for rq in reconstructed_reqs
+            if rq.decision in {RequirementComplianceEnum.UNVERIFIED, RequirementComplianceEnum.PARTIALLY_COMPLIANT} and not is_agent_identifier(rq.rule or rq.requirement_id)
+        ]
+
+        # Fallback if no reconstructed_reqs
+        if not reconstructed_reqs and execution.failed_requirements:
+            for fr in execution.failed_requirements:
+                if isinstance(fr, str) and not is_agent_identifier(fr) and fr not in failed_requirements:
+                    failed_requirements.append(fr)
+
+        if decision_enum == VerificationDecisionEnum.QUALIFIED:
+            failed_requirements = []
+            review_requirements = []
+            failed_agents = []
+            review_agents = []
+
+        decision_explanation: Optional[str] = None
+        decision_factors: List[Dict[str, Any]] = []
+        confidence_breakdown: Optional[VerificationConfidenceBreakdown] = None
+
+        raw_resp = getattr(execution, "raw_response", None) if isinstance(getattr(execution, "raw_response", None), dict) else {}
+        if not raw_resp and isinstance(execution.compliance_summary, dict):
+            if "raw_response" in execution.compliance_summary and isinstance(execution.compliance_summary["raw_response"], dict):
+                raw_resp = execution.compliance_summary["raw_response"]
+            else:
+                raw_resp = execution.compliance_summary
+
+        if raw_resp.get("decision_explanation"):
+            decision_explanation = str(raw_resp["decision_explanation"])
+        if raw_resp.get("decision_factors") and isinstance(raw_resp["decision_factors"], list):
+            decision_factors = raw_resp["decision_factors"]
+
+        if raw_resp.get("confidence_breakdown") and isinstance(raw_resp["confidence_breakdown"], dict):
+            try:
+                confidence_breakdown = VerificationConfidenceBreakdown.model_validate(raw_resp["confidence_breakdown"])
+            except Exception as ex:
+                logger.warning(f"Could not reconstitute confidence breakdown: {ex}")
+
+        if not confidence_breakdown and (reconstructed_agents or execution.overall_confidence is not None):
+            known_confs = [ag.confidence for ag in reconstructed_agents if ag.confidence is not None]
+            from app.services.verification_aggregator import verification_aggregator
+            confidence_breakdown = verification_aggregator._build_confidence_breakdown(
+                overall_confidence=execution.overall_confidence,
+                known_confidences=known_confs,
+                deduped_results=reconstructed_agents,
+                requirements_eval=reconstructed_reqs,
+            )
+
+        cross_verification: Optional[VerificationCrossVerification] = None
+        if raw_resp.get("cross_verification") and isinstance(raw_resp["cross_verification"], dict):
+            try:
+                cross_verification = VerificationCrossVerification.model_validate(raw_resp["cross_verification"])
+            except Exception as ex:
+                logger.warning(f"Could not reconstitute cross_verification: {ex}")
+
+        document_forensics: Optional[VerificationDocumentForensics] = None
+        if raw_resp.get("document_forensics") and isinstance(raw_resp["document_forensics"], dict):
+            try:
+                document_forensics = VerificationDocumentForensics.model_validate(raw_resp["document_forensics"])
+            except Exception as ex:
+                logger.warning(f"Could not reconstitute document_forensics: {ex}")
+
+        if not document_forensics and reconstructed_agents:
+            from app.services.verification_aggregator import verification_aggregator
+            document_forensics = verification_aggregator._build_document_forensics(
+                payload=None,
+                deduped_results=reconstructed_agents,
+                requirements_eval=reconstructed_reqs,
+            )
+
+        compliance_policy: Optional[VerificationCompliancePolicy] = None
+        if raw_resp.get("compliance_policy") and isinstance(raw_resp["compliance_policy"], dict):
+            try:
+                compliance_policy = VerificationCompliancePolicy.model_validate(raw_resp["compliance_policy"])
+            except Exception as ex:
+                logger.warning(f"Could not reconstitute compliance_policy: {ex}")
+
+        if not compliance_policy and (reconstructed_reqs or reconstructed_agents):
+            from app.services.verification_aggregator import verification_aggregator
+            compliance_policy = verification_aggregator._evaluate_compliance_policy(
+                requirements_eval=reconstructed_reqs,
+                deduped_results=reconstructed_agents,
+                cross_verification=cross_verification,
+                document_forensics=document_forensics,
+                warnings=execution.warnings or [],
+            )
+
+        document_similarity: Optional[VerificationDocumentSimilarity] = None
+        if raw_resp.get("document_similarity") and isinstance(raw_resp["document_similarity"], dict):
+            try:
+                document_similarity = VerificationDocumentSimilarity.model_validate(raw_resp["document_similarity"])
+            except Exception as ex:
+                logger.warning(f"Could not reconstitute document_similarity: {ex}")
+
+        if not document_similarity and (reconstructed_reqs or execution.evidence_snapshot):
+            from app.services.verification_aggregator import verification_aggregator
+            document_similarity = verification_aggregator._build_document_similarity(
+                payload=None,
+                requirements_eval=reconstructed_reqs,
+                bidder_evidence=execution.evidence_snapshot,
+            )
+
         return VerificationResponse(
             id=execution.id,
             verification_id=execution.verification_id,
@@ -463,9 +606,21 @@ class CRUDVerification:
             risk_score=execution.risk_score if execution.risk_score is not None else 0.0,
             risk_level=risk_level_enum,
             overall_confidence=execution.overall_confidence,
+            confidence_breakdown=confidence_breakdown,
+            cross_verification=cross_verification,
+            document_forensics=document_forensics,
+            document_similarity=document_similarity,
+            compliance_policy=compliance_policy,
             result_hash=execution.result_hash,
             reasons=execution.reasons or [],
-            failed_requirements=execution.failed_requirements or [],
+            decision_explanation=decision_explanation,
+            decision_factors=decision_factors,
+            passed_agents=passed_agents,
+            failed_agents=failed_agents,
+            review_agents=review_agents,
+            passed_requirements=passed_requirements,
+            failed_requirements=failed_requirements,
+            review_requirements=review_requirements,
             warnings=execution.warnings or [],
             inconclusive_checks=execution.inconclusive_checks or [],
             missing_documents=execution.missing_documents or [],

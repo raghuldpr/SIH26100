@@ -79,6 +79,8 @@ class AgentStatusEnum(str, enum.Enum):
     NOT_EXECUTED = "NOT_EXECUTED"
     FAILED = "FAILED"
     QUALIFIED = "QUALIFIED"
+    UNRESOLVED = "UNRESOLVED"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 class OverallComplianceEnum(str, enum.Enum):
@@ -181,11 +183,11 @@ class ProjectExperienceItem(BaseModel):
 
 class ExperienceRequirementsInput(BaseModel):
     """Tender experience criteria passed to Experience & Eligibility Agent."""
-    minimum_similar_works: int = Field(3, ge=0, description="Minimum number of qualifying completed projects required")
+    minimum_similar_works: int = Field(0, ge=0, description="Minimum number of qualifying completed projects required (default: 0)")
     minimum_project_value: float = Field(0.0, ge=0, description="Minimum threshold value for each qualifying project (INR)")
-    experience_period_years: int = Field(5, ge=1, le=20, description="Cutoff lookback period in years (default: 5)")
-    require_completion_certificate: bool = Field(True, description="Whether valid completion certificate is mandatory")
-    similarity_required: bool = Field(True, description="Whether technical similarity is enforced")
+    experience_period_years: Optional[int] = Field(None, ge=1, le=20, description="Cutoff lookback period or minimum required years")
+    require_completion_certificate: bool = Field(False, description="Whether valid completion certificate is mandatory")
+    similarity_required: bool = Field(False, description="Whether technical similarity is enforced")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -193,6 +195,8 @@ class ExperienceRequirementsInput(BaseModel):
 class ExperienceEvidenceInput(BaseModel):
     """Bidder past performance projects container."""
     projects: List[ProjectExperienceItem] = Field(default_factory=list, description="List of submitted past projects")
+    years_of_experience: Optional[int] = Field(None, description="Total or relevant years of experience")
+    experience_years: Optional[int] = Field(None, description="Alias for years_of_experience")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -216,15 +220,27 @@ class TenderRequirementItemInput(BaseModel):
     requirement_type: str = Field(..., description="Normalized requirement type string")
     rule: str = Field(..., description="Canonical rule name (e.g. MINIMUM_TURNOVER, SIMILAR_WORK_EXPERIENCE)")
     description: Optional[str] = Field(None, description="Human-readable requirement summary")
+    required_value: Optional[Any] = Field(None, description="Direct required threshold or value")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Structured rule evaluation parameters")
     mandatory: bool = Field(True, description="Whether this requirement is strictly mandatory")
     confidence: float = Field(1.0, ge=0.0, le=1.0, description="Extraction confidence score (0.0 to 1.0)")
     source_page: Optional[int] = Field(None, description="Tender document page where clause was found")
+    page_number: Optional[int] = Field(None, description="Alias for source_page")
     source_section: Optional[str] = Field(None, description="Tender document section title")
     source_text: Optional[str] = Field(None, description="Verbatim clause text from tender")
     resolution_method: str = Field("DETERMINISTIC", description="Extraction method (DETERMINISTIC or GROQ_ASSISTED)")
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _sync_tender_requirement_fields(self):
+        if self.required_value is not None and "required_value" not in self.parameters:
+            self.parameters["required_value"] = self.required_value
+        if self.page_number is None and self.source_page is not None:
+            self.page_number = self.source_page
+        elif self.source_page is None and self.page_number is not None:
+            self.source_page = self.page_number
+        return self
 
 
 class BidderEvidenceItemInput(BaseModel):
@@ -240,12 +256,26 @@ class BidderEvidenceItemInput(BaseModel):
     value: Any = Field(..., description="Structured evidence payload or scalar value")
     source_document: Optional[str] = Field(None, description="Origin filename or storage path")
     source_page: Optional[int] = Field(None, description="Page number of origin document")
+    page_number: Optional[int] = Field(None, description="Alias for source_page")
     source_text: Optional[str] = Field(None, description="Verbatim matched text in document")
+    text_snippet: Optional[str] = Field(None, description="Alias for source_text")
     confidence: float = Field(1.0, ge=0.0, le=1.0, description="Extraction confidence score (0.0 to 1.0)")
     document_hash: Optional[str] = Field(None, description="Deterministic SHA-256 hash of origin document")
     extraction_method: str = Field("DETERMINISTIC", description="Extraction method (DETERMINISTIC or GROQ_ASSISTED)")
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def _sync_bidder_evidence_fields(self):
+        if self.page_number is None and self.source_page is not None:
+            self.page_number = self.source_page
+        elif self.source_page is None and self.page_number is not None:
+            self.source_page = self.page_number
+        if self.text_snippet is None and self.source_text is not None:
+            self.text_snippet = self.source_text
+        elif self.source_text is None and self.text_snippet is not None:
+            self.source_text = self.text_snippet
+        return self
 
 
 # ==============================================================================
@@ -365,6 +395,72 @@ class N8nVerificationPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+def normalize_agent_status(status: Optional[str]) -> str:
+    """
+    Normalizes an agent outcome status to canonical Phase 22.2 values:
+    VERIFIED, FAILED, UNRESOLVED, ERROR, NOT_APPLICABLE.
+    """
+    if not status:
+        return "UNRESOLVED"
+    st = str(status).strip().upper()
+    if st in {"PASS", "PASSED", "VERIFIED", "QUALIFIED", "SUCCESS", "COMPLIANT"}:
+        return "VERIFIED"
+    if st in {"FAIL", "FAILED", "NOT_QUALIFIED", "NON_COMPLIANT"}:
+        return "FAILED"
+    if st in {"ERROR", "CRASH", "EXCEPTION", "FAILED_EXECUTION", "SYSTEM_ERROR"}:
+        return "ERROR"
+    if st in {"NOT_EXECUTED", "SKIPPED", "NOT_APPLICABLE", "N/A", "OMITTED"}:
+        return "NOT_APPLICABLE"
+    if st in {"UNRESOLVED", "REVIEW", "MANUAL_REVIEW", "INCONCLUSIVE", "NOT_VERIFIED", "PARTIAL", "WARNING", "UNKNOWN", "PENDING"}:
+        return "UNRESOLVED"
+    return "UNRESOLVED"
+
+
+class StructuredEvidenceItem(BaseModel):
+    """
+    Structured evidence item providing clear clause-level and agent-level provenance.
+    Exposes source document, page, detected values, thresholds, and verbatim quotes.
+    """
+    source_document: Optional[str] = Field(None, description="Origin filename or document reference")
+    page_number: Optional[int] = Field(None, description="1-indexed document page number, or null if genuinely unavailable")
+    field: Optional[str] = Field(None, description="Evidence field or section name")
+    section: Optional[str] = Field(None, description="Section reference or alias")
+    detected_value: Any = Field(None, description="Extracted or detected value from bidder evidence")
+    normalized_value: Any = Field(None, description="Normalized representation of detected value")
+    expected_value: Any = Field(None, description="Expected threshold or requirement criteria")
+    requirement: Optional[str] = Field(None, description="Requirement rule identifier or code")
+    evidence_text: Optional[str] = Field(None, description="Verbatim text quote or reference snippet")
+    reference: Optional[str] = Field(None, description="Evidence reference or document identifier")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Extraction or evaluation confidence")
+    evidence_id: Optional[str] = Field(None, description="Correlated bidder evidence UUID")
+    document_id: Optional[str] = Field(None, description="Correlated document artifact UUID")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _preprocess_evidence_dict(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Page number normalization
+            if data.get("page_number") is None and data.get("source_page") is not None:
+                data["page_number"] = data["source_page"]
+            # Detect field & detected_value if not explicitly set
+            if data.get("detected_value") is None:
+                known_keys = {
+                    "source_document", "page_number", "source_page", "field", "section",
+                    "detected_value", "normalized_value", "expected_value", "requirement",
+                    "evidence_text", "reference", "confidence", "evidence_id", "document_id", "status"
+                }
+                for k, v in data.items():
+                    if k not in known_keys and v is not None:
+                        data.setdefault("field", k)
+                        data["detected_value"] = v
+                        if data.get("normalized_value") is None:
+                            data["normalized_value"] = v
+                        break
+        return data
+
+
 # ==============================================================================
 # 3. n8n Agent Result Schema (Child agent output in n8n)
 # ==============================================================================
@@ -376,14 +472,17 @@ class N8nAgentResult(BaseModel):
     Phase 12.5 and 12.6 agent execution metadata and provenance.
     """
     agent: str = Field(..., description="Name of the reporting agent (e.g. GST_AGENT, FINANCIAL_AGENT)")
+    agent_id: Optional[str] = Field(None, description="Canonical agent identifier alias")
     agent_name: Optional[str] = Field(None, description="Canonical name alias of reporting agent")
-    status: str = Field(..., description="Outcome: PASS, FAIL, PARTIAL, UNKNOWN, ERROR, WARNING, INCONCLUSIVE, VERIFIED, NOT_VERIFIED, NOT_EXECUTED")
+    status: str = Field(..., description="Outcome: VERIFIED, FAILED, UNRESOLVED, ERROR, NOT_APPLICABLE, PASS, FAIL, etc.")
+    normalized_status: Optional[str] = Field(None, description="Normalized status: VERIFIED, FAILED, UNRESOLVED, ERROR, NOT_APPLICABLE")
     verification_id: Optional[str] = Field(None, description="Correlated verification execution reference ID")
     tender_id: Optional[str] = Field(None, description="Tender ID reference")
     bidder_id: Optional[str] = Field(None, description="Bidder ID reference")
     decision: Optional[str] = Field(None, description="Granular agent qualification decision")
+    result: Optional[str] = Field(None, description="Alias for decision")
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Verification confidence score (0.0 - 1.0)")
-    evidence: Dict[str, Any] = Field(default_factory=dict, description="Structured verified evidence key-values")
+    evidence: Union[List[StructuredEvidenceItem], Dict[str, Any]] = Field(default_factory=list, description="Structured verified evidence items or key-values")
     evidence_ids: List[str] = Field(default_factory=list, description="Associated evidence IDs")
     requirement_ids: List[str] = Field(default_factory=list, description="Associated requirement IDs")
     source_documents: List[str] = Field(default_factory=list, description="Source document references or IDs")
@@ -391,16 +490,32 @@ class N8nAgentResult(BaseModel):
     issues: List[str] = Field(default_factory=list, description="Identified discrepancies, violations, or errors")
     errors: List[str] = Field(default_factory=list, description="Explicit error messages if execution failed")
     reason: Optional[str] = Field(None, description="Primary explanatory reason for agent outcome")
+    summary: Optional[str] = Field(None, description="Alias for reason")
     risk_level: str = Field("LOW", description="Risk level: LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN")
     execution_metadata: Dict[str, Any] = Field(default_factory=dict, description="Execution timing, worker, and provenance metadata")
     timestamp: Optional[str] = Field(None, description="ISO 8601 evaluation timestamp")
 
     @model_validator(mode="after")
     def sync_agent_aliases(self) -> "N8nAgentResult":
+        if not self.agent_id:
+            self.agent_id = self.agent or self.agent_name
+        elif not self.agent:
+            self.agent = self.agent_id
+
         if not self.agent_name:
             self.agent_name = self.agent
         elif not self.agent:
             self.agent = self.agent_name
+
+        if not self.result and self.decision:
+            self.result = self.decision
+        elif not self.decision and self.result:
+            self.decision = self.result
+
+        if not self.summary and self.reason:
+            self.summary = self.reason
+        elif not self.reason and self.summary:
+            self.reason = self.summary
 
         # Synchronize findings, issues, errors
         if not self.issues and self.findings:
@@ -412,23 +527,38 @@ class N8nAgentResult(BaseModel):
         elif not self.issues and self.errors:
             self.issues = list(self.errors)
 
-        # Synchronize evidence_ids from evidence dictionary if present
-        if not self.evidence_ids and self.evidence:
+        # Synchronize evidence_ids and source_documents from evidence list or dictionary
+        if isinstance(self.evidence, list):
+            for ev_item in self.evidence:
+                if isinstance(ev_item, StructuredEvidenceItem):
+                    if ev_item.evidence_id and ev_item.evidence_id not in self.evidence_ids:
+                        self.evidence_ids.append(ev_item.evidence_id)
+                    if ev_item.source_document and ev_item.source_document not in self.source_documents:
+                        self.source_documents.append(ev_item.source_document)
+                elif isinstance(ev_item, dict):
+                    ev_id = ev_item.get("evidence_id")
+                    if ev_id and str(ev_id) not in self.evidence_ids:
+                        self.evidence_ids.append(str(ev_id))
+                    doc_ref = ev_item.get("source_document") or ev_item.get("document_id")
+                    if doc_ref and str(doc_ref) not in self.source_documents:
+                        self.source_documents.append(str(doc_ref))
+        elif isinstance(self.evidence, dict) and self.evidence:
             ev_id = self.evidence.get("evidence_id")
-            if ev_id:
-                self.evidence_ids = [str(ev_id)]
-
-        # Synchronize source_documents from evidence dictionary if present
-        if not self.source_documents and self.evidence:
+            if ev_id and str(ev_id) not in self.evidence_ids:
+                self.evidence_ids.append(str(ev_id))
             doc_ref = self.evidence.get("source_document") or self.evidence.get("document_id")
-            if doc_ref:
-                self.source_documents = [str(doc_ref)]
+            if doc_ref and str(doc_ref) not in self.source_documents:
+                self.source_documents.append(str(doc_ref))
 
         if self.status:
             self.status = self.status.strip().upper()
+            if not self.normalized_status:
+                self.normalized_status = normalize_agent_status(self.status)
+
         return self
 
     model_config = ConfigDict(extra="ignore")
+
 
 
 
@@ -445,7 +575,12 @@ class FinalComplianceResult(BaseModel):
     risk_score: float = Field(..., ge=0.0, le=100.0, description="Composite weighted risk score (0 - 100)")
     risk_level: RiskLevelEnum = Field(..., description="Composite risk level (LOW, MEDIUM, HIGH, CRITICAL)")
     reasons: List[str] = Field(default_factory=list, description="Key summary reasons driving the decision")
+    passed_agents: List[str] = Field(default_factory=list, description="Agent identifiers that passed verification")
+    failed_agents: List[str] = Field(default_factory=list, description="Agent identifiers that failed verification")
+    review_agents: List[str] = Field(default_factory=list, description="Agent identifiers requiring manual review or inconclusive")
+    passed_requirements: List[str] = Field(default_factory=list, description="Requirement rule identifiers that passed")
     failed_requirements: List[Union[str, Dict[str, Any]]] = Field(default_factory=list, description="Failed criteria details")
+    review_requirements: List[str] = Field(default_factory=list, description="Requirement rule identifiers requiring manual review or unresolved")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warning notices")
     missing_documents: List[str] = Field(default_factory=list, description="Missing mandatory document types")
 
@@ -471,7 +606,12 @@ class N8nVerificationResponse(BaseModel):
     risk_score: float = Field(0.0, ge=0.0, le=100.0, description="Aggregated risk score between 0 and 100")
     risk_level: str = Field("LOW", description="Overall risk level (LOW, MEDIUM, HIGH)")
     agent_results: List[N8nAgentResult] = Field(default_factory=list, description="Array of results from all executed agents")
+    passed_agents: List[str] = Field(default_factory=list, description="Agent identifiers that passed verification")
+    failed_agents: List[str] = Field(default_factory=list, description="Agent identifiers that failed verification")
+    review_agents: List[str] = Field(default_factory=list, description="Agent identifiers that require review")
+    passed_requirements: List[str] = Field(default_factory=list, description="Requirement rule identifiers that passed")
     failed_requirements: List[Union[str, Dict[str, Any]]] = Field(default_factory=list, description="Mandatory requirements that failed")
+    review_requirements: List[str] = Field(default_factory=list, description="Requirement rule identifiers requiring review")
     missing_documents: List[str] = Field(default_factory=list, description="List of unsubmitted mandatory documents")
     warnings: List[str] = Field(default_factory=list, description="List of non-fatal warnings")
     reasons: List[str] = Field(default_factory=list, description="Explanatory summary reasons")
@@ -494,7 +634,8 @@ class RequirementEvaluation(BaseModel):
     rule: Optional[str] = Field(None, description="Rule code, e.g. MINIMUM_TURNOVER")
     description: Optional[str] = Field(None, description="Requirement textual description")
     mandatory: bool = Field(True, description="Whether this requirement is mandatory")
-    decision: RequirementComplianceEnum = Field(..., description="COMPLIANT, NON_COMPLIANT, PARTIALLY_COMPLIANT, UNVERIFIED")
+    decision: Optional[RequirementComplianceEnum] = Field(None, description="COMPLIANT, NON_COMPLIANT, PARTIALLY_COMPLIANT, UNVERIFIED")
+    status: Optional[str] = Field(None, description="Normalized status: PASS, FAIL, UNRESOLVED")
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Evaluation confidence score")
     agent: Optional[str] = Field(None, description="Responsible agent name, e.g. FINANCIAL_AGENT, GST_AGENT")
     evidence_ids: List[str] = Field(default_factory=list, description="Correlated evidence IDs")
@@ -504,6 +645,25 @@ class RequirementEvaluation(BaseModel):
     source_text: Optional[str] = Field(None, description="Source requirement text from tender")
     reason: Optional[str] = Field(None, description="Explanatory justification for the decision")
     findings: List[str] = Field(default_factory=list, description="Specific findings or discrepancies")
+    evidence: List[StructuredEvidenceItem] = Field(default_factory=list, description="Structured evidence supporting this requirement evaluation")
+
+    @model_validator(mode="after")
+    def sync_status_and_decision(self) -> "RequirementEvaluation":
+        if not self.status:
+            if self.decision == RequirementComplianceEnum.COMPLIANT:
+                self.status = "PASS"
+            elif self.decision == RequirementComplianceEnum.NON_COMPLIANT:
+                self.status = "FAIL"
+            else:
+                self.status = "UNRESOLVED"
+        elif not self.decision:
+            if self.status == "PASS":
+                self.decision = RequirementComplianceEnum.COMPLIANT
+            elif self.status == "FAIL":
+                self.decision = RequirementComplianceEnum.NON_COMPLIANT
+            else:
+                self.decision = RequirementComplianceEnum.UNVERIFIED
+        return self
 
     model_config = ConfigDict(extra="ignore")
 
@@ -530,6 +690,204 @@ class VerificationComplianceSummary(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class AgentConfidenceItem(BaseModel):
+    """Auditable confidence entry for a single evaluated agent."""
+    agent_id: str = Field(..., description="Canonical agent identifier")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score from agent (or null if absent)")
+    status: str = Field(..., description="Agent outcome status (e.g. VERIFIED, FAILED, UNRESOLVED, ERROR, NOT_APPLICABLE)")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class RequirementConfidenceItem(BaseModel):
+    """Auditable confidence entry for a single evaluated tender requirement."""
+    requirement_id: str = Field(..., description="Requirement identifier")
+    rule: Optional[str] = Field(None, description="Canonical rule name")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Requirement confidence score (or null if absent)")
+    status: str = Field(..., description="Requirement outcome status (PASS, FAIL, UNRESOLVED)")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class UnresolvedConfidenceItem(BaseModel):
+    """Item that remains unresolved or in error, explaining its impact on confidence."""
+    type: str = Field(..., description="Entity type (AGENT or REQUIREMENT)")
+    requirement_id: Optional[str] = Field(None, description="Requirement identifier if type is REQUIREMENT")
+    rule: Optional[str] = Field(None, description="Rule name if type is REQUIREMENT")
+    agent_id: Optional[str] = Field(None, description="Agent identifier if type is AGENT")
+    status: str = Field(..., description="Unresolved status (UNRESOLVED, ERROR, NOT_APPLICABLE)")
+    confidence: Optional[float] = Field(None, description="Confidence value if any (or null)")
+    reason: Optional[str] = Field(None, description="Reason for inconclusive or unresolved state")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class VerificationConfidenceBreakdown(BaseModel):
+    """
+    Transparent, auditable breakdown of the existing verification confidence calculation.
+    Explains the arithmetic mean across reporting agents and maps requirements and unresolved items.
+    """
+    overall_confidence: Optional[float] = Field(None, description="Aggregated overall confidence score (or null if unavailable)")
+    method: str = Field("arithmetic_mean", description="Deterministic aggregation formula: arithmetic mean of non-null agent confidences rounded to 2 decimals")
+    formula: Optional[str] = Field("round(sum(known_confidences) / len(known_confidences), 2)", description="Exact formula expression")
+    inputs: List[float] = Field(default_factory=list, description="List of non-null agent confidence values that formed the inputs")
+    calculated_confidence: Optional[float] = Field(None, description="Calculated confidence result matching overall_confidence")
+    agent_confidence: List[AgentConfidenceItem] = Field(default_factory=list, description="Per-agent confidence contributions")
+    requirement_confidence: List[RequirementConfidenceItem] = Field(default_factory=list, description="Per-requirement confidence values")
+    unresolved_items: List[UnresolvedConfidenceItem] = Field(default_factory=list, description="Unresolved or error conditions affecting confidence")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class CrossVerificationValueItem(BaseModel):
+    """A single evidence value occurrence participating in cross-verification."""
+    source_document: Optional[str] = Field(None, description="Source document file name or reference")
+    page_number: Optional[int] = Field(None, description="1-indexed page number or null if unavailable")
+    value: Any = Field(..., description="Detected or normalized value")
+    evidence_id: Optional[str] = Field(None, description="Optional associated evidence ID")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class CrossVerificationCheckItem(BaseModel):
+    """Result of cross-verifying a specific field or identifier across multiple evidence sources."""
+    check_id: str = Field(..., description="Identifier for cross-check (e.g. GSTIN_CROSS_DOCUMENT, PAN_CROSS_DOCUMENT)")
+    field: str = Field(..., description="Canonical field being verified (e.g. gstin, pan, udyam_registration, bidder_name, annual_turnover, years_of_experience)")
+    status: str = Field(..., description="CONSISTENT, INCONSISTENT, or UNRESOLVED")
+    values: List[CrossVerificationValueItem] = Field(default_factory=list, description="All gathered evidence occurrences from distinct or same documents")
+    reason: str = Field(..., description="Human-readable explanation of comparison result")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class VerificationCrossVerification(BaseModel):
+    """
+    Deterministic cross-verification comparison across existing evidence records.
+    Detects inconsistencies across documents, agent findings, and requirements without modifying decisions.
+    """
+    overall_status: str = Field("UNRESOLVED", description="CONSISTENT, INCONSISTENT, or UNRESOLVED")
+    checks: List[CrossVerificationCheckItem] = Field(default_factory=list, description="List of granular cross-verification checks")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ForensicAnomalyItem(BaseModel):
+    """Structured record of a single forensic anomaly or integrity violation."""
+    anomaly_id: str = Field(..., description="Unique anomaly identifier (e.g. FORENSIC-001)")
+    anomaly_type: str = Field(..., description="Classification (e.g. METADATA_INCONSISTENCY, HASH_COLLISION, FILE_CORRUPTION, FORMAT_VIOLATION, CONTENT_TYPE_MISMATCH, TAMPERING_INDICATOR)")
+    severity: str = Field("MEDIUM", description="Severity level: LOW, MEDIUM, HIGH, CRITICAL")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence of detection")
+    description: str = Field(..., description="Human-readable description of the anomaly")
+    source_document: Optional[str] = Field(None, description="Filename or source document reference")
+    document_id: Optional[str] = Field(None, description="Associated document ID")
+    page_number: Optional[int] = Field(None, description="1-indexed page number or null if document-wide")
+    affected_field: Optional[str] = Field(None, description="Affected field, section, or attribute")
+    evidence: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Supporting technical evidence or metadata dict")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ForensicDocumentResult(BaseModel):
+    """Forensic verification status and findings for a specific submitted document."""
+    document_id: Optional[str] = Field(None, description="Unique document ID")
+    source_document: Optional[str] = Field(None, description="Filename or origin path")
+    status: str = Field("CLEAN", description="CLEAN, SUSPICIOUS, ANOMALY, or UNRESOLVED")
+    risk_level: str = Field("LOW", description="LOW, MEDIUM, HIGH, CRITICAL, or UNKNOWN")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Forensic evaluation confidence")
+    sha256: Optional[str] = Field(None, description="Cryptographic SHA-256 hash if available")
+    anomalies: List[ForensicAnomalyItem] = Field(default_factory=list, description="List of detected anomalies for this document")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class VerificationDocumentForensics(BaseModel):
+    """
+    Transparent, structured document forensics assessment.
+    Exposes existing forensic signals (PDF metadata, hashes, corruption, OCR text, tampering)
+    produced by DOCUMENT_FORENSICS_AGENT in an auditable format.
+    """
+    overall_status: str = Field("CLEAN", description="CLEAN, SUSPICIOUS, ANOMALY, or UNRESOLVED")
+    overall_risk: str = Field("LOW", description="LOW, MEDIUM, HIGH, CRITICAL, or UNKNOWN")
+    documents: List[ForensicDocumentResult] = Field(default_factory=list, description="Forensic evaluation per document")
+    summary: Optional[str] = Field(None, description="Summary of forensic evaluation")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class AppliedPolicyRule(BaseModel):
+    """Explicit deterministic rule applied during compliance policy evaluation."""
+    rule_id: str = Field(..., description="Canonical policy rule identifier (e.g. MANDATORY_REQUIREMENT_FAILURE, CROSS_VERIFICATION_INCONSISTENCY)")
+    trigger: str = Field(..., description="Triggering clause, field, document, or check name")
+    action: str = Field(..., description="Policy action: NOT_QUALIFIED, MANUAL_REVIEW, WARNING, QUALIFIED")
+    reason: str = Field(..., description="Deterministic human-readable policy justification")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class PolicyFindingItem(BaseModel):
+    """Individual finding item classified by compliance policy."""
+    finding_id: Optional[str] = Field(None, description="Unique finding ID")
+    finding_type: str = Field(..., description="Category: MANDATORY_REQUIREMENT_FAILURE, CRITICAL_FORENSIC_ANOMALY, MANDATORY_REQUIREMENT_UNRESOLVED, CROSS_VERIFICATION_INCONSISTENCY, WARNING")
+    severity: str = Field("MEDIUM", description="Severity: LOW, MEDIUM, HIGH, CRITICAL")
+    source: Optional[str] = Field(None, description="Originating requirement, document, check, or agent")
+    description: str = Field(..., description="Verbatim finding description")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class VerificationCompliancePolicy(BaseModel):
+    """
+    Deterministic compliance policy layer interpreting all verification findings
+    (mandatory requirements, cross-verification, document forensics) according to
+    explicit precedence rules to govern the final procurement decision.
+    """
+    final_status: str = Field(..., description="Final policy determination: QUALIFIED, NOT_QUALIFIED, MANUAL_REVIEW")
+    blocking_findings: List[Union[PolicyFindingItem, Dict[str, Any], str]] = Field(default_factory=list, description="Findings that unconditionally disqualify the bidder")
+    review_findings: List[Union[PolicyFindingItem, Dict[str, Any], str]] = Field(default_factory=list, description="Findings that necessitate manual procurement officer review")
+    warnings: List[str] = Field(default_factory=list, description="Non-blocking advisory warnings")
+    applied_rules: List[AppliedPolicyRule] = Field(default_factory=list, description="Explicit rules applied to reach the policy determination")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class DocumentReference(BaseModel):
+    """Traceable reference to a document in similarity comparisons."""
+    document_id: Optional[str] = Field(None, description="Unique document artifact identifier")
+    source_document: Optional[str] = Field(None, description="Filename or origin path")
+    page_number: Optional[int] = Field(None, description="Specific page number if page-level evidence is available")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class DocumentSimilarityComparison(BaseModel):
+    """Pairwise deterministic document similarity comparison result."""
+    comparison_id: str = Field(..., description="Unique comparison identifier (e.g. SIM-001)")
+    document_a: DocumentReference = Field(..., description="First document in comparison pair")
+    document_b: DocumentReference = Field(..., description="Second document in comparison pair")
+    document_a_page: Optional[int] = Field(None, description="Page number of document A if page-level comparison")
+    document_b_page: Optional[int] = Field(None, description="Page number of document B if page-level comparison")
+    comparison_type: str = Field(..., description="EXACT_DUPLICATE or CONTENT_SIMILARITY")
+    similarity_score: float = Field(..., ge=0.0, le=1.0, description="Deterministic similarity score (0.0 to 1.0)")
+    threshold: float = Field(..., ge=0.0, le=1.0, description="Threshold associated with this status")
+    status: str = Field(..., description="EXACT_DUPLICATE, HIGH_SIMILARITY, MODERATE_SIMILARITY, LOW_SIMILARITY")
+    reason: str = Field(..., description="Neutral factual explanation of similarity finding")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class VerificationDocumentSimilarity(BaseModel):
+    """
+    Deterministic document similarity and duplicate detection assessment (Phase 22.8).
+    Identifies exact duplicate and near-duplicate documents across extracted content.
+    Informational and non-accusatory.
+    """
+    overall_status: str = Field("NO_COMPARISON", description="NO_COMPARISON, SIMILARITY_FOUND, EXACT_DUPLICATE, INSUFFICIENT_REFERENCE_CORPUS")
+    comparisons: List[DocumentSimilarityComparison] = Field(default_factory=list, description="List of pairwise document comparisons")
+    reason: Optional[str] = Field(None, description="Summary description of similarity outcome")
+
+    model_config = ConfigDict(extra="ignore")
+
+
 # ==============================================================================
 # 7. Verification API Response Schema (FastAPI -> React Frontend)
 # ==============================================================================
@@ -552,9 +910,21 @@ class VerificationResponse(BaseModel):
     risk_score: float = Field(..., ge=0.0, le=100.0, description="Composite risk score (0 to 100)")
     risk_level: RiskLevelEnum = Field(..., description="Composite risk level (LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN)")
     overall_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Composite verification confidence score")
+    confidence_breakdown: Optional[VerificationConfidenceBreakdown] = Field(None, description="Transparent auditable breakdown of verification confidence")
+    cross_verification: Optional[VerificationCrossVerification] = Field(None, description="Deterministic cross-verification comparison across existing evidence")
+    document_forensics: Optional[VerificationDocumentForensics] = Field(None, description="Structured document forensics and tamper analysis results")
+    document_similarity: Optional[VerificationDocumentSimilarity] = Field(None, description="Deterministic document similarity and duplicate detection results")
+    compliance_policy: Optional[VerificationCompliancePolicy] = Field(None, description="Deterministic compliance policy evaluation governing the final procurement decision")
     result_hash: Optional[str] = Field(None, description="Deterministic SHA-256 digest of logical verification result")
     reasons: List[str] = Field(default_factory=list, description="High-level explanatory decision reasons")
-    failed_requirements: List[str] = Field(default_factory=list, description="Human-readable list of failed requirements")
+    decision_explanation: Optional[str] = Field(None, description="Deterministic human-readable explanation of final qualification decision")
+    decision_factors: List[Dict[str, Any]] = Field(default_factory=list, description="Structured blocking factors or contributing criteria")
+    passed_agents: List[str] = Field(default_factory=list, description="Agent identifiers that passed verification")
+    failed_agents: List[str] = Field(default_factory=list, description="Agent identifiers that failed verification")
+    review_agents: List[str] = Field(default_factory=list, description="Agent identifiers requiring manual review or inconclusive")
+    passed_requirements: List[str] = Field(default_factory=list, description="Actual requirement/rule identifiers that passed")
+    failed_requirements: List[str] = Field(default_factory=list, description="Actual requirement/rule identifiers that failed")
+    review_requirements: List[str] = Field(default_factory=list, description="Actual requirement/rule identifiers requiring manual review or unresolved")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings and review flags")
     inconclusive_checks: List[str] = Field(default_factory=list, description="Requirements or agent checks that were inconclusive or unexecuted")
     missing_documents: List[str] = Field(default_factory=list, description="Missing document notices")
@@ -577,7 +947,12 @@ class VerificationResponse(BaseModel):
 class VerificationHistoryItem(BaseModel):
     """Safe metadata summary for tender/bidder verification history listing."""
     verification_id: str = Field(..., description="Canonical verification ID")
+    tender_id: Optional[uuid.UUID] = Field(None, description="Tender UUID")
+    tender_number: Optional[str] = Field(None, description="Tender number or title")
+    bidder_id: Optional[uuid.UUID] = Field(None, description="Bidder UUID")
+    bidder_name: Optional[str] = Field(None, description="Bidder registered company name")
     status: str = Field(..., description="Verification status (QUEUED, RUNNING, COMPLETED, FAILED, UNVERIFIED)")
+    decision: Optional[str] = Field(None, description="Qualification decision verdict")
     overall_compliance: Optional[str] = Field(None, description="Overall compliance verdict")
     risk_level: Optional[str] = Field(None, description="Composite risk level")
     created_at: datetime = Field(..., description="Creation timestamp")

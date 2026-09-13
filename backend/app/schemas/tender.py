@@ -63,6 +63,14 @@ class TenderBase(BaseModel):
         default=TenderStatus.DRAFT,
         description="Procurement lifecycle state",
     )
+    source: Optional[str] = Field(
+        default="MANUAL",
+        description="Procurement origin source (MANUAL, GEM)",
+    )
+    gem_bid_id: Optional[str] = Field(
+        None,
+        description="Official GeM Bid ID if imported from GeM",
+    )
 
     @field_validator("tender_number", "title", "organization", "department", "category", mode="after")
     @classmethod
@@ -132,6 +140,8 @@ class TenderResponse(BaseModel):
     bid_start_date: Optional[datetime] = Field(None, description="Bid start date (UTC)")
     bid_end_date: Optional[datetime] = Field(None, description="Bid deadline date (UTC)")
     status: TenderStatus = Field(..., description="Current tender lifecycle status")
+    source: Optional[str] = Field("MANUAL", description="Procurement origin source (MANUAL, GEM)")
+    gem_bid_id: Optional[str] = Field(None, description="Official GeM Bid ID if imported from GeM")
     created_by: Optional[UUID] = Field(None, description="ID of creating procurement officer")
     created_at: Optional[datetime] = Field(None, description="Record creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Record last update timestamp")

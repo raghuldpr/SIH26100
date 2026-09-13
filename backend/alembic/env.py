@@ -27,7 +27,7 @@ target_metadata = Base.metadata
 
 # Resolve effective database URL (from settings/.env with fallback for offline generation)
 database_url = settings.DATABASE_URL if settings.DATABASE_URL else "sqlite:///./dev_fallback.db"
-config.set_main_option("sqlalchemy.url", database_url)
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

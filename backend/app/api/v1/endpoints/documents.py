@@ -1,13 +1,14 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundException
+from app.crud.crud_document import crud_document
 from app.dependencies.auth import get_current_user, require_role
 from app.dependencies.database import get_db
 from app.models.enums import UserRole
 from app.models.user import User
-from app.schemas.common import StandardResponse
+from app.schemas.common import PaginatedResponse, PaginationMeta, StandardResponse
 from app.schemas.document import DocumentResponse
 
 from app.services.document_processing_service import document_processing_service
@@ -22,6 +23,41 @@ documents_router = APIRouter(
     prefix="/documents",
     tags=["documents"],
 )
+
+
+@documents_router.get(
+    "",
+    response_model=PaginatedResponse[DocumentResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List All Documents",
+    description="Retrieves a paginated list of uploaded documents across tenders and bidders.",
+)
+def list_documents_endpoint(
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[DocumentResponse]:
+    """Lists accessible documents with pagination."""
+    skip = (page - 1) * page_size
+    items, total_count = crud_document.list_all(db=db, skip=skip, limit=page_size)
+    enriched = [enrich_document_response(doc) for doc in items]
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
+
+    return PaginatedResponse[DocumentResponse](
+        success=True,
+        data=enriched,
+        items=enriched,
+        page=page,
+        page_size=page_size,
+        total=total_count,
+        pagination=PaginationMeta(
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+    )
 
 
 @documents_router.get(

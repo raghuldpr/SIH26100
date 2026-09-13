@@ -75,3 +75,20 @@ export async function checkVerificationHealth(): Promise<{
 }> {
   return apiClient.get<{ status: string; n8n_service?: Record<string, any> }>("/verification/health");
 }
+
+/**
+ * Retrieves global verification executions history across tenders and bidders via GET /api/v1/verification/history
+ */
+export async function listAllVerifications(limit: number = 50): Promise<VerificationHistoryItem[]> {
+  const response = await apiClient.get<VerificationHistoryItem[]>("/verification/history", {
+    params: { limit },
+  });
+  return Array.isArray(response) ? response : [];
+}
+
+/**
+ * Phase 20: Unified quick verification upload and execution via POST /api/v1/verification/quick
+ */
+export async function quickVerify(formData: FormData): Promise<VerificationResponse> {
+  return apiClient.post<VerificationResponse>("/verification/quick", formData);
+}

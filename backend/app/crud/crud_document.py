@@ -69,6 +69,27 @@ def list_bidder_documents(
     return items, total_count
 
 
+def list_all_documents(
+    db: Session,
+    skip: int = 0,
+    limit: int = 50,
+) -> Tuple[List[Document], int]:
+    """
+    Retrieves paginated list of all documents in the system.
+    """
+    safe_skip = max(0, skip)
+    safe_limit = max(1, min(limit, 100))
+
+    query = select(Document)
+    count_stmt = select(func.count()).select_from(query.subquery())
+    total_count = db.scalar(count_stmt) or 0
+
+    items_stmt = query.order_by(Document.created_at.desc()).offset(safe_skip).limit(safe_limit)
+    items = list(db.scalars(items_stmt).all())
+
+    return items, total_count
+
+
 def create_document_metadata(
     db: Session,
     original_filename: str,
@@ -163,6 +184,7 @@ class CRUDDocument:
     """Data layer operations for Document entities."""
 
     get_by_id = staticmethod(get_document_by_id)
+    list_all = staticmethod(list_all_documents)
     list_tender_documents = staticmethod(list_tender_documents)
     list_bidder_documents = staticmethod(list_bidder_documents)
     create_metadata = staticmethod(create_document_metadata)

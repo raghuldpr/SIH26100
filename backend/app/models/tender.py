@@ -88,6 +88,20 @@ class Tender(Base):
         default=TenderStatus.DRAFT,
         index=True,
     )
+    source: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="MANUAL",
+        server_default="MANUAL",
+        doc="Procurement origin source (MANUAL, GEM)",
+    )
+    gem_bid_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+        nullable=True,
+        doc="Official GeM Bid / Tender ID if imported from GeM",
+    )
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -95,6 +109,7 @@ class Tender(Base):
         index=True,
         doc="User ID of the creating procurement officer",
     )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -28,3 +28,30 @@ export async function retryDocument(documentId: string): Promise<DocumentRespons
 export async function deleteDocument(documentId: string): Promise<StandardResponse<{ document_id: string }>> {
   return apiClient.delete<StandardResponse<{ document_id: string }>>(`/documents/${documentId}`);
 }
+
+export interface PaginatedDocumentsResponse {
+  success?: boolean;
+  data?: DocumentResponse[];
+  items?: DocumentResponse[];
+  page: number;
+  page_size: number;
+  total: number;
+  pagination?: {
+    total_count: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
+}
+
+/**
+ * Lists all documents across tenders and bidders via GET /api/v1/documents
+ */
+export async function listAllDocuments(
+  page: number = 1,
+  pageSize: number = 20
+): Promise<PaginatedDocumentsResponse> {
+  return apiClient.get<PaginatedDocumentsResponse>("/documents", {
+    params: { page, page_size: pageSize },
+  });
+}

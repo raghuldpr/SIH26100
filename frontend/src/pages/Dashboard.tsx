@@ -2,20 +2,22 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { listTenders, TenderResponse } from "../api/tenders";
 import { listBidders, BidderResponse } from "../api/bidders";
+import { listAllDocuments } from "../api/documents";
+import { listAllVerifications } from "../api/verification";
+import { VerificationHistoryItem } from "../types";
 import { MetricCard, TenderTable, ComplianceChart, VerificationHealth, RecentActivity } from "../components/dashboard";
 import { Button, Badge } from "../components/ui";
 import {
   FileText,
   Users,
-  CheckCircle2,
-  Hourglass,
   Plus,
   RefreshCw,
   Calendar,
   AlertCircle,
+  FolderOpen,
+  ShieldCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { formatCurrencyINR } from "../lib/utils";
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -24,6 +26,8 @@ export const Dashboard: React.FC = () => {
   const [bidders, setBidders] = useState<BidderResponse[]>([]);
   const [totalTendersCount, setTotalTendersCount] = useState<number>(0);
   const [totalBiddersCount, setTotalBiddersCount] = useState<number>(0);
+  const [totalDocsCount, setTotalDocsCount] = useState<number>(0);
+  const [verifications, setVerifications] = useState<VerificationHistoryItem[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,18 +38,23 @@ export const Dashboard: React.FC = () => {
 
     try {
       // Execute parallel requests against live FastAPI backend
-      const [tendersRes, biddersRes] = await Promise.all([
+      const [tendersRes, biddersRes, docsRes, verifsRes] = await Promise.all([
         listTenders({ page: 1, page_size: 20 }),
         listBidders({ page: 1, page_size: 20 }),
+        listAllDocuments(1, 20).catch(() => ({ total: 0, items: [] })),
+        listAllVerifications(50).catch(() => []),
       ]);
 
       const tenderItems = tendersRes.data || tendersRes.items || [];
       const bidderItems = biddersRes.data || biddersRes.items || [];
+      const docsAny = docsRes as any;
 
       setTenders(tenderItems);
       setBidders(bidderItems);
       setTotalTendersCount(tendersRes.pagination?.total_count ?? tendersRes.total ?? tenderItems.length);
       setTotalBiddersCount(biddersRes.pagination?.total_count ?? biddersRes.total ?? bidderItems.length);
+      setTotalDocsCount(docsAny.pagination?.total_count ?? docsAny.total ?? (docsAny.items || []).length);
+      setVerifications(Array.isArray(verifsRes) ? verifsRes : []);
     } catch (err: any) {
       console.error("Dashboard data fetch failed:", err);
       setError(err?.message || "Failed to load dashboard metrics from backend.");
@@ -60,9 +69,18 @@ export const Dashboard: React.FC = () => {
 
   // Deterministically derived metrics from active data
   const activeTenders = tenders.filter((t) => t.status === "OPEN" || t.status === "PUBLISHED");
-  const evaluatingTenders = tenders.filter((t) => t.status === "EVALUATING");
   const activeTendersCount = activeTenders.length;
-  const activeValueSum = activeTenders.reduce((sum, t) => sum + (t.estimated_value || 0), 0);
+
+  // Compliance summary derived from real verifications
+  const qualifiedCount = verifications.filter(
+    (v) => v.decision === "QUALIFIED" || v.overall_compliance === "COMPLIANT"
+  ).length;
+  const manualReviewCount = verifications.filter(
+    (v) => v.decision === "MANUAL_REVIEW" || v.decision === "CONDITIONALLY_QUALIFIED"
+  ).length;
+  const failedCount = verifications.filter(
+    (v) => v.decision === "NOT_QUALIFIED" || v.overall_compliance === "NON_COMPLIANT"
+  ).length;
 
   // Current date formatted for header
   const todayFormatted = new Date().toLocaleDateString("en-US", {
@@ -126,7 +144,7 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Row 1: 4 Stitch Metric KPI Cards */}
+      {/* Row 1: 4 Core Metric KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <MetricCard
           title="Active Tenders"
@@ -147,23 +165,44 @@ export const Dashboard: React.FC = () => {
         />
 
         <MetricCard
-          title="Under Evaluation"
-          value={isLoading ? "—" : evaluatingTenders.length}
-          subtitle="Multi-agent verification pending"
-          icon={Hourglass}
-          variant={evaluatingTenders.length > 0 ? "warning" : "default"}
+          title="Vault Documents"
+          value={isLoading ? "—" : totalDocsCount}
+          subtitle="Uploaded NIT & Bidder attachments"
+          icon={FolderOpen}
+          variant="default"
           isLoading={isLoading}
         />
 
         <MetricCard
-          title="Active Tender Value"
-          value={isLoading ? "—" : formatCurrencyINR(activeValueSum)}
-          subtitle="Cumulative active procurement"
-          icon={CheckCircle2}
-          variant="success"
+          title="Verification Executions"
+          value={isLoading ? "—" : verifications.length}
+          subtitle={`${qualifiedCount} Qualified • ${manualReviewCount} Review`}
+          icon={ShieldCheck}
+          variant={manualReviewCount > 0 ? "warning" : qualifiedCount > 0 ? "success" : "default"}
           isLoading={isLoading}
         />
       </div>
+
+      {/* Compliance Summary Bar */}
+      {verifications.length > 0 && (
+        <div className="p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-subtle flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <span className="text-xs font-bold uppercase tracking-wider text-on-surface">Compliance Summary</span>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Badge variant="success" size="sm" dot>
+              {qualifiedCount} QUALIFIED
+            </Badge>
+            <Badge variant="warning" size="sm" dot>
+              {manualReviewCount} MANUAL REVIEW
+            </Badge>
+            <Badge variant={failedCount > 0 ? "danger" : "neutral"} size="sm" dot>
+              {failedCount} DISQUALIFIED
+            </Badge>
+          </div>
+        </div>
+      )}
 
       {/* Row 2: Analytics Visualizations (2 Columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

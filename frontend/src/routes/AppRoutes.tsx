@@ -12,6 +12,7 @@ import {
   Bidders,
   BidderDetailsPage,
   Verification,
+  QuickVerification,
   Reports,
   Documents,
   Settings,
@@ -35,6 +36,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/bidders" element={<Bidders />} />
           <Route path="/bidders/:bidderId" element={<BidderDetailsPage />} />
           <Route path="/verification" element={<Verification />} />
+          <Route path="/quick-verification" element={<QuickVerification />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/settings" element={<Settings />} />

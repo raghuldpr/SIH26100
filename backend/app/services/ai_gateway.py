@@ -84,7 +84,7 @@ class AIGateway:
         client: Optional[Any] = None,
     ) -> None:
         self.api_key = api_key if api_key is not None else settings.GROQ_API_KEY
-        self.model = model or getattr(settings, "GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.model = model or getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b")
         self.timeout_seconds = timeout_seconds or getattr(settings, "GROQ_TIMEOUT_SECONDS", 30.0)
         self.max_retries = max_retries if max_retries is not None else getattr(settings, "GROQ_MAX_RETRIES", 2)
         self.temperature = getattr(settings, "GROQ_TEMPERATURE", 0.0)
@@ -277,6 +277,7 @@ class AIGateway:
                     model=self.model,
                     messages=messages,
                     temperature=self.temperature,
+                    max_tokens=600,
                     response_format={"type": "json_object"},
                 )
 

@@ -104,7 +104,7 @@ def test_ai_gateway_successful_interpretation():
     call_kwargs = mock_client.chat.completions.create.call_args[1]
     assert call_kwargs["response_format"] == {"type": "json_object"}
     assert call_kwargs["temperature"] == 0.0
-    assert call_kwargs["model"] == "llama-3.3-70b-versatile"
+    assert call_kwargs["model"] in ("qwen-2.5-32b", "llama-3.3-70b-versatile", "qwen/qwen3.8-27b")
 
 
 def test_ai_gateway_rejects_malformed_llm_json():

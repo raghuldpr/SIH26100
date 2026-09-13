@@ -25,7 +25,7 @@ class PageExtractionResult(BaseModel):
     has_text: bool = Field(False, description="True if usable embedded text exists")
     images_count: int = Field(0, description="Number of embedded image objects detected")
     requires_ocr: bool = Field(False, description="True if page contains insufficient embedded text")
-    tables: List[List[Optional[str]]] = Field(default_factory=list, description="Raw tables on this page")
+    tables: List[Any] = Field(default_factory=list, description="Raw tables on this page")
 
 
 # -----------------------------------------------------------------------------

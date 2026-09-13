@@ -126,6 +126,18 @@ class DatabaseException(AppException):
         )
 
 
+class ConflictException(AppException):
+    """Resource conflict error (409 Conflict)."""
+
+    def __init__(self, message: str = "Resource conflict", details: Optional[Any] = None):
+        super().__init__(
+            message=message,
+            status_code=status.HTTP_409_CONFLICT,
+            code="CONFLICT",
+            details=details,
+        )
+
+
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     """Handler for custom managed application exceptions."""

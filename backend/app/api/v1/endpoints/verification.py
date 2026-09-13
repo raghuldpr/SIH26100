@@ -13,9 +13,13 @@ from fastapi import (
     APIRouter,
     Body,
     Depends,
+    File,
+    Form,
     Header,
     HTTPException,
+    Query,
     Request,
+    UploadFile,
     status,
 )
 from sqlalchemy.orm import Session
@@ -26,12 +30,13 @@ from app.crud.crud_verification import (
     compute_canonical_result_hash,
     crud_verification,
 )
-from app.dependencies.auth import get_current_user_optional
+from app.dependencies.auth import get_current_user, get_current_user_optional, require_role
 from app.dependencies.database import get_db
 from app.models.bidder import Bidder
 from app.models.enums import UserRole
 from app.models.tender import Tender
 from app.models.user import User
+from app.models.verification import VerificationExecution
 from app.schemas.verification import (
     N8nVerificationPayload,
     N8nVerificationResponse,
@@ -161,6 +166,34 @@ async def run_verification_endpoint(
 ) -> VerificationResponse:
     """Executes the complete end-to-end bid verification workflow."""
     return await trigger_verification_endpoint(request=request, db=db)
+
+
+@verification_router.post(
+    "/quick",
+    response_model=VerificationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Unified Quick Tender + Bidder Verification",
+    description="Accepts a tender document and one or more bidder documents via multipart upload, automatically creates execution contexts, extracts requirements and evidence, and runs multi-agent verification.",
+)
+async def quick_verification_endpoint(
+    tender_document: UploadFile = File(..., description="Official Tender NIT / RFP document (PDF)"),
+    bidder_documents: List[UploadFile] = File(..., description="One or more Bidder compliance documents"),
+    tender_title: Optional[str] = Form(None, description="Optional custom tender title"),
+    bidder_name: Optional[str] = Form(None, description="Optional bidder company name"),
+    current_user: User = Depends(
+        require_role(UserRole.PROCUREMENT_OFFICER, UserRole.ADMIN, UserRole.BUYER)
+    ),
+    db: Session = Depends(get_db),
+) -> VerificationResponse:
+    """Executes single-screen quick verification for procurement officers."""
+    return await verification_service.execute_quick_verification(
+        db=db,
+        tender_document=tender_document,
+        bidder_documents=bidder_documents,
+        tender_title=tender_title,
+        bidder_name=bidder_name,
+        current_user=current_user,
+    )
 
 
 
@@ -356,6 +389,55 @@ async def verification_health_endpoint() -> Dict[str, Any]:
         "status": "healthy" if health.get("reachable") else "degraded",
         "n8n_service": health,
     }
+
+
+@verification_router.get(
+    "",
+    response_model=List[VerificationHistoryItem],
+    status_code=status.HTTP_200_OK,
+    summary="List Verification Executions",
+    description="Retrieves a list of recent verification executions.",
+)
+@verification_router.get(
+    "/history",
+    response_model=List[VerificationHistoryItem],
+    status_code=status.HTTP_200_OK,
+    summary="List Verification Executions History",
+    description="Retrieves chronological verification history for all tenders and bidders.",
+)
+def list_all_verifications_endpoint(
+    limit: int = Query(50, ge=1, le=100, description="Maximum executions to return"),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> List[VerificationHistoryItem]:
+    """Lists safe verification execution history across tenders and bidders."""
+    executions = (
+        db.query(VerificationExecution)
+        .order_by(VerificationExecution.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    results = []
+    for ex in executions:
+        tender = db.query(Tender).filter(Tender.id == ex.tender_id).first()
+        bidder = db.query(Bidder).filter(Bidder.id == ex.bidder_id).first()
+        results.append(
+            VerificationHistoryItem(
+                verification_id=ex.verification_id,
+                tender_id=ex.tender_id,
+                tender_number=tender.tender_number if tender else str(ex.tender_id)[:8],
+                bidder_id=ex.bidder_id,
+                bidder_name=bidder.company_name if bidder else str(ex.bidder_id)[:8],
+                status=ex.status,
+                decision=ex.decision,
+                overall_compliance=ex.overall_compliance,
+                risk_level=ex.risk_level,
+                created_at=ex.created_at,
+                completed_at=ex.completed_at,
+                result_hash=ex.result_hash,
+            )
+        )
+    return results
 
 
 @verification_router.get(

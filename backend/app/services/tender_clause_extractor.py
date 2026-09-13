@@ -114,7 +114,7 @@ class TenderClauseExtractor:
     )
     PERIOD_REGEX = re.compile(
         r"(?:preceding|last|past|during(?:\s+the)?)\s*(?:the\s*)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\s*(?:financial\s*)?(?:years?|yrs?|months?)\b|"
-        r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:years?|yrs?)\s*(?:of\s+)?(?:past\s+)?experience\b|"
+        r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:years?|yrs?)\s*(?:of\s+)?(?:past\s+|relevant\s+)?experience\b|"
         r"\b(?:at\s*least|minimum)\s*(\d+|one|two|three|four|five)\s*(?:years?|yrs?)\b",
         re.IGNORECASE,
     )
@@ -232,7 +232,15 @@ class TenderClauseExtractor:
             matched_kw.append("past_experience")
         if "similar work" in lower or "similar contracts" in lower or "similar goods" in lower:
             matched_kw.append("similar_work")
-        if "years of experience" in lower or "years in business" in lower or "years of operation" in lower:
+        if (
+            "years of experience" in lower
+            or "years in business" in lower
+            or "years of operation" in lower
+            or "relevant experience" in lower
+            or "years of relevant experience" in lower
+            or "years relevant experience" in lower
+            or bool(re.search(r"\b\d+\s+years?\s+(?:of\s+)?(?:relevant\s+)?experience\b", lower))
+        ):
             matched_kw.append("years_experience")
         if "track record" in lower:
             matched_kw.append("track_record")

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { listTenders } from "../api/tenders";
 import { TenderResponse, TenderStatus } from "../types";
 import { Button, Input, Select, Badge, Skeleton } from "../components/ui";
-import { CreateTenderModal } from "../components/tenders";
+import { CreateTenderModal, GemImportModal } from "../components/tenders";
 import {
   FileText,
   Plus,
@@ -13,6 +13,7 @@ import {
   Building,
   Calendar,
   ArrowRight,
+  Download,
 } from "lucide-react";
 import { formatDate } from "../lib/utils";
 
@@ -29,6 +30,7 @@ export const Tenders: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGemModalOpen, setIsGemModalOpen] = useState(false);
 
   const fetchTenders = useCallback(async () => {
     setIsLoading(true);
@@ -105,6 +107,14 @@ export const Tenders: React.FC = () => {
             leftIcon={<RefreshCw className="h-4 w-4" />}
           >
             Refresh
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsGemModalOpen(true)}
+            leftIcon={<Download className="h-4 w-4" />}
+          >
+            Import from GeM
           </Button>
           <Button
             variant="primary"
@@ -304,8 +314,18 @@ export const Tenders: React.FC = () => {
           fetchTenders();
         }}
       />
+
+      {/* GeM Import Modal */}
+      <GemImportModal
+        isOpen={isGemModalOpen}
+        onClose={() => setIsGemModalOpen(false)}
+        onTenderImported={() => {
+          fetchTenders();
+        }}
+      />
     </div>
   );
 };
 
 export default Tenders;
+

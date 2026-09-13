@@ -103,7 +103,8 @@ class TenderRequirementNormalizer:
         r"(\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\s*(?:financial\s*)?"
         r"(years?|yrs?|months?)\b|"
         r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*"
-        r"(years?|yrs?|months?)\s*(?:of\s+)?(?:past\s+)?(?:experience|operation|business)?\b",
+        r"(years?|yrs?|months?)\s*(?:of\s+)?(?:past\s+|relevant\s+)?(?:experience|operation|business)?\b|"
+        r"\b(?:at\s*least|minimum)\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(years?|yrs?|months?)\b",
         re.IGNORECASE,
     )
 
@@ -111,18 +112,23 @@ class TenderRequirementNormalizer:
     def normalize_time_expression(cls, text: str) -> Optional[Dict[str, Any]]:
         """
         Normalizes phrases like 'preceding three years', 'last three financial years',
-        'previous 3 years' into standard: {"period": 3, "period_unit": "YEARS"}.
+        'at least 5 years of relevant experience' into standard: {"period": 5, "period_unit": "YEARS"}.
         """
         match = cls.TIME_REGEX.search(text)
         if not match:
             return None
 
-        # Find which group captured the number and unit
-        g1_num, g1_unit = match.group(1), match.group(2)
-        g2_num, g2_unit = match.group(3), match.group(4)
-
-        raw_num = g1_num or g2_num
-        raw_unit = (g1_unit or g2_unit or "years").lower()
+        # Find which pair captured the number and unit
+        pairs = [
+            (match.group(1), match.group(2)),
+            (match.group(3), match.group(4)),
+            (match.group(5), match.group(6)) if match.lastindex and match.lastindex >= 6 else (None, None),
+        ]
+        raw_num, raw_unit = None, None
+        for n, u in pairs:
+            if n:
+                raw_num, raw_unit = n, u or "years"
+                break
 
         if not raw_num:
             return None
@@ -505,10 +511,23 @@ class TenderRequirementNormalizer:
                     params["period_unit"] = time_info["period_unit"]
             elif is_similar and time_info:
                 rule_name = "SIMILAR_WORK_EXPERIENCE"
-                params = {"scope": "SIMILAR_WORK", "min_years": time_info["period"], "period_unit": time_info["period_unit"], "operator": ">="}
+                params = {
+                    "scope": "SIMILAR_WORK",
+                    "min_years": time_info["period"],
+                    "experience_period_years": time_info["period"],
+                    "required_value": time_info["period"],
+                    "period_unit": time_info["period_unit"],
+                    "operator": ">=",
+                }
             elif time_info:
                 rule_name = "EXPERIENCE_PERIOD"
-                params = {"min_years": time_info["period"], "period_unit": time_info["period_unit"], "operator": ">="}
+                params = {
+                    "min_years": time_info["period"],
+                    "experience_period_years": time_info["period"],
+                    "required_value": time_info["period"],
+                    "period_unit": time_info["period_unit"],
+                    "operator": ">=",
+                }
             else:
                 return NormalizedRequirement(
                     status=NormalizationStatus.AMBIGUOUS,

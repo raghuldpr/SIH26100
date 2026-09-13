@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import {
+  BidderCreate,
   DocumentResponse,
   TenderComplianceProfileResponse,
   TenderCreate,
@@ -170,4 +171,24 @@ export async function listTenderBidders(tenderId: string): Promise<TenderBidderI
   const response = await apiClient.get<any>(`/tenders/${tenderId}/bidders`);
   if (Array.isArray(response)) return response;
   return response?.data || response?.items || [];
+}
+
+/**
+ * Assigns an existing bidder to a tender via POST /api/v1/tenders/{tenderId}/bidders/{bidderId}
+ */
+export async function assignBidderToTender(
+  tenderId: string,
+  bidderId: string
+): Promise<TenderBidderItem> {
+  return apiClient.post<TenderBidderItem>(`/tenders/${tenderId}/bidders/${bidderId}`);
+}
+
+/**
+ * Registers a new bidder entity and associates it with the tender in one step via POST /api/v1/tenders/{tenderId}/bidders
+ */
+export async function createAndAssignBidder(
+  tenderId: string,
+  bidderData: BidderCreate
+): Promise<TenderBidderItem> {
+  return apiClient.post<TenderBidderItem>(`/tenders/${tenderId}/bidders`, bidderData);
 }

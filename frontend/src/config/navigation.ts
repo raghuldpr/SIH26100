@@ -4,6 +4,7 @@ import {
   Building2,
   FolderOpen,
   ShieldCheck,
+  Zap,
   BarChart3,
   Settings,
   LucideIcon,
@@ -25,6 +26,14 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     path: "/dashboard",
     icon: LayoutDashboard,
     description: "Procurement overview & compliance analytics",
+  },
+  {
+    id: "quick-verification",
+    label: "Quick Verify",
+    path: "/quick-verification",
+    icon: Zap,
+    badge: "Unified",
+    description: "Single-screen tender & bidder intake verification",
   },
   {
     id: "tenders",
@@ -63,6 +72,7 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     description: "Compliance summaries & tamper-evident digests",
   },
 ];
+
 
 export const SECONDARY_NAV_ITEMS: NavItem[] = [
   {

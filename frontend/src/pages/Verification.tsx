@@ -6,6 +6,7 @@ import {
   runVerification,
   getVerification,
   getVerificationHistory,
+  listAllVerifications,
 } from "../api/verification";
 import {
   TenderResponse,
@@ -13,7 +14,7 @@ import {
   VerificationResponse,
   VerificationHistoryItem,
 } from "../types";
-import { Button, Select, Skeleton } from "../components/ui";
+import { Button, Select, Skeleton, Badge } from "../components/ui";
 import {
   VerificationSummary,
   AgentResults,
@@ -32,7 +33,9 @@ import {
   Activity,
   Printer,
   History,
+  Eye,
 } from "lucide-react";
+import { formatDate } from "../lib/utils";
 
 type TabType = "summary" | "agents" | "clauses" | "evidence" | "audit";
 
@@ -50,6 +53,8 @@ export const Verification: React.FC = () => {
 
   const [activeVerification, setActiveVerification] = useState<VerificationResponse | null>(null);
   const [historyItems, setHistoryItems] = useState<VerificationHistoryItem[]>([]);
+  const [globalHistory, setGlobalHistory] = useState<VerificationHistoryItem[]>([]);
+  const [isLoadingGlobalHistory, setIsLoadingGlobalHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("summary");
 
   const [isLoadingDropdowns, setIsLoadingDropdowns] = useState(true);
@@ -85,6 +90,22 @@ export const Verification: React.FC = () => {
     }
     loadDropdowns();
   }, []);
+
+  const loadGlobalHistory = useCallback(async () => {
+    setIsLoadingGlobalHistory(true);
+    try {
+      const items = await listAllVerifications(50);
+      setGlobalHistory(items);
+    } catch (err: any) {
+      console.error("Failed to load global verification history:", err);
+    } finally {
+      setIsLoadingGlobalHistory(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGlobalHistory();
+  }, [loadGlobalHistory]);
 
   // Fetch verification result by ID or by tender/bidder pair
   const loadVerificationData = useCallback(async () => {
@@ -156,9 +177,10 @@ export const Verification: React.FC = () => {
         bidder_id: selectedBidderId,
         verification_id: response.verification_id,
       });
-      // Refresh history list
+      // Refresh history lists
       const hist = await getVerificationHistory(selectedTenderId, selectedBidderId);
       setHistoryItems(hist);
+      loadGlobalHistory();
     } catch (err: any) {
       setError(err?.message || "Multi-agent verification execution failed.");
     } finally {
@@ -166,8 +188,58 @@ export const Verification: React.FC = () => {
     }
   };
 
+  const handleSelectHistoryItem = async (item: VerificationHistoryItem) => {
+    setIsLoadingVerification(true);
+    setError(null);
+    try {
+      const res = await getVerification(item.verification_id);
+      setActiveVerification(res);
+      if (res.tender_id) setSelectedTenderId(res.tender_id);
+      if (res.bidder_id) setSelectedBidderId(res.bidder_id);
+      setSearchParams({
+        tender_id: res.tender_id || "",
+        bidder_id: res.bidder_id || "",
+        verification_id: res.verification_id,
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err: any) {
+      setError("Failed to load selected verification execution details.");
+    } finally {
+      setIsLoadingVerification(false);
+    }
+  };
+
   const currentTender = tenders.find((t) => t.id === selectedTenderId);
   const currentBidder = bidders.find((b) => b.id === selectedBidderId);
+
+  const getDecisionBadge = (decision?: string) => {
+    switch (decision?.toUpperCase()) {
+      case "QUALIFIED":
+        return <Badge variant="success" size="sm">QUALIFIED</Badge>;
+      case "CONDITIONALLY_QUALIFIED":
+        return <Badge variant="warning" size="sm">CONDITIONAL</Badge>;
+      case "NOT_QUALIFIED":
+        return <Badge variant="danger" size="sm">NOT QUALIFIED</Badge>;
+      case "MANUAL_REVIEW":
+        return <Badge variant="primary" size="sm">MANUAL REVIEW</Badge>;
+      default:
+        return <Badge variant="neutral" size="sm">{decision || "PENDING"}</Badge>;
+    }
+  };
+
+  const getRiskBadge = (risk?: string) => {
+    switch (risk?.toUpperCase()) {
+      case "LOW":
+        return <span className="text-emerald-400 font-mono text-xs font-semibold">LOW</span>;
+      case "MEDIUM":
+        return <span className="text-amber-400 font-mono text-xs font-semibold">MEDIUM</span>;
+      case "HIGH":
+      case "CRITICAL":
+        return <span className="text-red-400 font-mono text-xs font-semibold">HIGH</span>;
+      default:
+        return <span className="text-on-surface-variant font-mono text-xs">{risk || "—"}</span>;
+    }
+  };
 
   return (
     <div className="space-y-6 font-sans">
@@ -195,8 +267,11 @@ export const Verification: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={loadVerificationData}
-            isLoading={isLoadingVerification}
+            onClick={() => {
+              loadVerificationData();
+              loadGlobalHistory();
+            }}
+            isLoading={isLoadingVerification || isLoadingGlobalHistory}
             leftIcon={<RefreshCw className="h-4 w-4" />}
           >
             Refresh
@@ -225,7 +300,7 @@ export const Verification: React.FC = () => {
           {historyItems.length > 0 && (
             <span className="text-[11px] font-mono text-on-surface-variant flex items-center gap-1">
               <History className="h-3.5 w-3.5 text-outline" />
-              <span>{historyItems.length} Past Executions</span>
+              <span>{historyItems.length} Past Executions for Selection</span>
             </span>
           )}
         </div>
@@ -312,7 +387,7 @@ export const Verification: React.FC = () => {
               Autonomous Multi-Agent Orchestration In Progress
             </h3>
             <p className="text-xs text-on-surface-variant max-w-md mx-auto font-mono">
-              Dispatching verification context to n8n Master Orchestrator. Evaluating GSTIN, PAN, Forensics, Financial Thresholds, and Clause Eligibility...
+              Dispatching verification context to multi-agent orchestrator. Evaluating GSTIN, PAN, Forensics, Financial Thresholds, and Clause Eligibility...
             </p>
           </div>
         </div>
@@ -445,6 +520,109 @@ export const Verification: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Verification History Table Section */}
+      <div className="p-6 bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-subtle space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-outline-variant/20">
+          <div>
+            <h3 className="text-sm font-bold text-on-surface flex items-center gap-2">
+              <History className="h-4 w-4 text-primary" />
+              <span>Verification History ({globalHistory.length})</span>
+            </h3>
+            <p className="text-xs text-on-surface-variant font-mono mt-0.5">
+              Chronological log of multi-agent verification runs, decisions, risk levels, and immutable result hashes
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
+            onClick={loadGlobalHistory}
+            isLoading={isLoadingGlobalHistory}
+          >
+            Refresh Log
+          </Button>
+        </div>
+
+        {isLoadingGlobalHistory ? (
+          <div className="space-y-2">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : globalHistory.length === 0 ? (
+          <div className="text-center py-8 text-xs text-on-surface-variant bg-surface-container-low/40 rounded-lg p-6">
+            No verification executions recorded yet. Run a verification above to populate the audit log.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-outline-variant/30 bg-surface-container-low/60 text-[11px] font-mono text-on-surface-variant uppercase tracking-wider">
+                  <th className="py-2.5 px-3">Verification ID</th>
+                  <th className="py-2.5 px-3">Tender</th>
+                  <th className="py-2.5 px-3">Bidder</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Decision</th>
+                  <th className="py-2.5 px-3">Risk Level</th>
+                  <th className="py-2.5 px-3">Created</th>
+                  <th className="py-2.5 px-3">Completed</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/20 text-xs font-mono">
+                {globalHistory.map((item) => (
+                  <tr
+                    key={item.verification_id}
+                    className={`hover:bg-surface-container-low/50 transition-colors ${
+                      activeVerification?.verification_id === item.verification_id ? "bg-primary/5 font-semibold" : ""
+                    }`}
+                  >
+                    <td className="py-2.5 px-3 text-primary font-bold">
+                      <span className="cursor-pointer hover:underline" onClick={() => handleSelectHistoryItem(item)}>
+                        {item.verification_id}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-sans text-on-surface max-w-[140px] truncate" title={item.tender_number || item.tender_id}>
+                      {item.tender_number || item.tender_id?.slice(0, 8) || "—"}
+                    </td>
+                    <td className="py-2.5 px-3 font-sans text-on-surface max-w-[160px] truncate" title={item.bidder_name || item.bidder_id}>
+                      {item.bidder_name || item.bidder_id?.slice(0, 8) || "—"}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded bg-surface-container text-[11px] text-on-surface">
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {getDecisionBadge(item.decision)}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {getRiskBadge(item.risk_level)}
+                    </td>
+                    <td className="py-2.5 px-3 text-on-surface-variant text-[11px]">
+                      {formatDate(item.created_at)}
+                    </td>
+                    <td className="py-2.5 px-3 text-on-surface-variant text-[11px]">
+                      {item.completed_at ? formatDate(item.completed_at) : "—"}
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <Button
+                        variant={activeVerification?.verification_id === item.verification_id ? "primary" : "secondary"}
+                        size="sm"
+                        leftIcon={<Eye className="h-3 w-3" />}
+                        onClick={() => handleSelectHistoryItem(item)}
+                      >
+                        {activeVerification?.verification_id === item.verification_id ? "Viewing" : "View"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
