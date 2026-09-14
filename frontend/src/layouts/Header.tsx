@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileNav }) => {
       case "settings":
         return { title: "Platform Settings", subtitle: "Access Control & Integrations" };
       default:
-        return { title: "Procurement Workspace", subtitle: "SIH-26100 Platform" };
+        return { title: "Procurement Workspace", subtitle: "TenderTrust Platform" };
     }
   };
 

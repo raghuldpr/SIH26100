@@ -1,6 +1,7 @@
 import React from "react";
 import { RequirementEvaluation } from "../../types";
 import { FileCheck, Layers, AlertTriangle, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { extractHumanReadableValue } from "../../lib/evidenceFormatter";
 
 export interface ComplianceBreakdownProps {
   requirements: RequirementEvaluation[];
@@ -81,9 +82,16 @@ export const ComplianceBreakdown: React.FC<ComplianceBreakdownProps> = ({ requir
             <tbody className="divide-y divide-outline-variant/20 text-sm">
               {requirements.map((req, idx) => {
                 const reqAny = req as any;
+                const fieldHint = req.rule || req.description || req.requirement_id;
                 const requiredVal = reqAny.required_value || reqAny.parameters?.required_value || reqAny.parameters?.threshold || (req.rule ? req.rule : "Mandatory clause");
                 const actualVal = reqAny.actual_value || reqAny.bidder_value || req.reason || "Evaluated against bidder profile";
-                const evidenceText = req.source_text || (req.evidence_ids && req.evidence_ids.length > 0 ? req.evidence_ids.join(", ") : (req.agent ? `Agent: ${req.agent}` : "Bidder Documents"));
+                const rawEvidence = req.source_text || (req.evidence_ids && req.evidence_ids.length > 0 ? req.evidence_ids.join(", ") : (req.agent ? `Agent: ${req.agent}` : "Bidder Documents"));
+                
+                const displayRequired = extractHumanReadableValue(requiredVal, fieldHint);
+                const displayActual = extractHumanReadableValue(actualVal, fieldHint);
+                const displayEvidence = typeof rawEvidence === "object" ? extractHumanReadableValue(rawEvidence) : String(rawEvidence || "");
+
+                const actualIsComplex = Boolean(actualVal && typeof actualVal === "object" && Object.keys(actualVal).length > 1);
 
                 return (
                   <tr key={idx} className="hover:bg-surface-container-low/40 transition-colors">
@@ -111,8 +119,8 @@ export const ComplianceBreakdown: React.FC<ComplianceBreakdownProps> = ({ requir
 
                     {/* Evidence */}
                     <td className="py-4 px-4 align-top max-w-[220px]">
-                      <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-3" title={evidenceText}>
-                        {evidenceText}
+                      <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-3" title={displayEvidence}>
+                        {displayEvidence}
                       </p>
                       {req.source_section && (
                         <div className="text-xs text-primary font-medium mt-1">
@@ -123,16 +131,26 @@ export const ComplianceBreakdown: React.FC<ComplianceBreakdownProps> = ({ requir
 
                     {/* Required */}
                     <td className="py-4 px-4 align-top max-w-[180px]">
-                      <div className="p-2.5 rounded-lg bg-surface-container/70 border border-outline-variant/30 font-mono text-xs text-on-surface leading-relaxed">
-                        {typeof requiredVal === "object" ? JSON.stringify(requiredVal) : String(requiredVal)}
+                      <div className="p-2.5 rounded-lg bg-surface-container/70 border border-outline-variant/30 font-mono text-xs text-on-surface leading-relaxed break-words">
+                        {displayRequired}
                       </div>
                     </td>
 
                     {/* Actual */}
                     <td className="py-4 px-4 align-top max-w-[220px]">
-                      <div className="p-2.5 rounded-lg bg-surface-container/70 border border-outline-variant/30 font-mono text-xs text-on-surface leading-relaxed">
-                        {typeof actualVal === "object" ? JSON.stringify(actualVal) : String(actualVal)}
+                      <div className="p-2.5 rounded-lg bg-surface-container/70 border border-outline-variant/30 font-mono text-xs text-on-surface leading-relaxed break-words">
+                        {displayActual}
                       </div>
+                      {actualIsComplex && (
+                        <details className="mt-1">
+                          <summary className="text-[10px] text-primary hover:underline cursor-pointer font-mono select-none">
+                            View Details
+                          </summary>
+                          <pre className="p-1 bg-black/5 dark:bg-white/5 rounded font-mono text-[9px] overflow-x-auto mt-1 max-h-24 text-on-surface-variant whitespace-pre-wrap">
+                            {JSON.stringify(actualVal, null, 2)}
+                          </pre>
+                        </details>
+                      )}
                       {req.findings && req.findings.length > 0 && (
                         <div className="text-xs text-on-surface-variant mt-1.5 space-y-0.5">
                           {req.findings.slice(0, 2).map((finding, fi) => (

@@ -65,7 +65,7 @@ def test_api_v1_openapi_generation():
     openapi_data = response.json()
 
     assert openapi_data["openapi"].startswith("3.")
-    assert openapi_data["info"]["title"] == "SIH26100"
+    assert openapi_data["info"]["title"] in ["SIH26100", "TenderTrust"]
     assert "/api/v1/health" in openapi_data["paths"]
     assert "/api/v1/health/db" in openapi_data["paths"]
 

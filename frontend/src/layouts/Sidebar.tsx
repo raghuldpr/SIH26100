@@ -1,8 +1,9 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { PRIMARY_NAV_ITEMS, SECONDARY_NAV_ITEMS } from "../config/navigation";
-import { ShieldCheck, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "../lib/utils";
+import { TenderTrustLogo } from "../components/ui";
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -40,20 +41,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Brand Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-outline-variant/30 shrink-0">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="h-10 w-10 rounded-lg bg-primary text-white flex items-center justify-center shrink-0 shadow-sm">
-              <ShieldCheck className="h-6 w-6 text-primary-fixed" />
-            </div>
-            {!isCollapsed && (
-              <div className="flex flex-col truncate">
-                <span className="text-sm font-bold tracking-tight text-on-surface truncate">
-                  Quixotic
-                </span>
-                <span className="text-[10px] text-on-surface-variant font-mono truncate">
-                  SIH-26100 Platform
-                </span>
-              </div>
-            )}
+          <div className="flex items-center overflow-hidden">
+            <TenderTrustLogo
+              size="sm"
+              variant={isCollapsed ? "icon-only" : "horizontal"}
+              showTagline={!isCollapsed}
+            />
           </div>
 
           {/* Close button for mobile */}

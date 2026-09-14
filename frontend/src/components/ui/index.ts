@@ -7,3 +7,4 @@ export * from "./Modal";
 export * from "./Progress";
 export * from "./Skeleton";
 export * from "./StatusIndicator";
+export * from "./Logo";

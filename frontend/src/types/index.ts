@@ -403,6 +403,7 @@ export interface CrossVerificationValueItem {
   source_document?: string | null;
   page_number?: number | null;
   value: any;
+  normalized_value?: any;
   evidence_id?: string | null;
 }
 
@@ -436,9 +437,11 @@ export interface ForensicDocumentResult {
   document_id?: string | null;
   source_document: string;
   status: "CLEAN" | "SUSPICIOUS" | "ANOMALY" | "UNRESOLVED" | string;
-  risk_level: "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN" | string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "UNKNOWN" | string;
   confidence?: number | null;
   sha256?: string | null;
+  file_type?: string | null;
+  mime_type?: string | null;
   anomalies: ForensicAnomalyItem[];
 }
 
@@ -453,6 +456,7 @@ export interface DocumentReference {
   document_id?: string | null;
   source_document?: string | null;
   page_number?: number | null;
+  sha256?: string | null;
 }
 
 export interface DocumentSimilarityComparison {
@@ -505,6 +509,18 @@ export interface VerificationCompliancePolicy {
   applied_rules: AppliedPolicyRule[];
 }
 
+export interface DecisionFactorItem {
+  type: string;
+  requirement_id?: string;
+  rule?: string;
+  mandatory?: boolean;
+  status?: string;
+  reason?: string;
+  evidence?: StructuredEvidenceItem[];
+  agent_id?: string;
+  field?: string;
+}
+
 export interface VerificationResponse {
   id?: string;
   verification_id: string;
@@ -512,6 +528,8 @@ export interface VerificationResponse {
   tender_id: string;
   bidder_id: string;
   bidder_name: string;
+  tender_number?: string;
+  tender_title?: string;
   status: VerificationStatus | string;
   decision: VerificationDecision | string;
   overall_compliance?: OverallCompliance | string;
@@ -526,16 +544,7 @@ export interface VerificationResponse {
   result_hash?: string;
   reasons: string[];
   decision_explanation?: string;
-  decision_factors?: Array<{
-    type: string;
-    requirement_id?: string;
-    rule?: string;
-    mandatory?: boolean;
-    status?: string;
-    reason?: string;
-    evidence?: StructuredEvidenceItem[];
-    agent_id?: string;
-  }>;
+  decision_factors?: DecisionFactorItem[];
   passed_agents?: string[];
   failed_agents?: string[];
   review_agents?: string[];

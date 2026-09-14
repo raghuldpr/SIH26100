@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Input } from "../components/ui";
-import { ShieldCheck, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
+import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Input, TenderTrustLogo } from "../components/ui";
+import { Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
 import { ApiClientError } from "../api/client";
 
 export const Login: React.FC = () => {
@@ -41,14 +41,9 @@ export const Login: React.FC = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-2">
-        <div className="inline-flex h-12 w-12 rounded-xl bg-primary text-white items-center justify-center shadow-card">
-          <ShieldCheck className="h-7 w-7 text-primary-fixed" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-on-surface">
-          Quixotic Procurement
-        </h1>
+        <TenderTrustLogo size="lg" variant="stacked" showTagline={true} />
         <p className="text-xs text-on-surface-variant font-mono">
-          SIH-26100 — Multi-Agent Bid Verification System
+          Multi-Agent Bid Verification System
         </p>
       </div>
 

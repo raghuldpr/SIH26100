@@ -5,6 +5,9 @@ import { VerificationResponse } from "../types";
 import { Button, Input, Badge, Card } from "../components/ui";
 import {
   VerificationSummary,
+  CrossVerification,
+  DocumentForensics,
+  DocumentSimilarity,
   AgentResults,
   ComplianceBreakdown,
   EvidencePanel,
@@ -24,6 +27,9 @@ import {
   ArrowRight,
   RefreshCw,
   CheckCircle2,
+  GitCompare,
+  FileSearch,
+  CopyCheck,
 } from "lucide-react";
 
 interface BidderFileItem {
@@ -68,7 +74,7 @@ function formatBytes(bytes: number, decimals = 1): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
-type TabType = "summary" | "agents" | "clauses" | "evidence" | "audit";
+type TabType = "summary" | "cross_verification" | "forensics" | "similarity" | "agents" | "clauses" | "evidence" | "audit";
 
 export const QuickVerification: React.FC = () => {
   // Tender input state
@@ -311,6 +317,42 @@ export const QuickVerification: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setActiveTab("cross_verification")}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "cross_verification"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <GitCompare className="h-4 w-4" />
+              <span>Cross-Verification ({verificationResult.cross_verification?.checks?.length || 0})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("forensics")}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "forensics"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <FileSearch className="h-4 w-4" />
+              <span>Document Forensics ({verificationResult.document_forensics?.documents?.length || 0})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("similarity")}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "similarity"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <CopyCheck className="h-4 w-4" />
+              <span>Document Similarity ({verificationResult.document_similarity?.comparisons?.length || 0})</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab("agents")}
               className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === "agents"
@@ -361,6 +403,18 @@ export const QuickVerification: React.FC = () => {
 
           {/* Tab Contents */}
           {activeTab === "summary" && <VerificationSummary verification={verificationResult} />}
+          {activeTab === "cross_verification" && (
+            <CrossVerification crossVerification={verificationResult.cross_verification} />
+          )}
+          {activeTab === "forensics" && (
+            <DocumentForensics documentForensics={verificationResult.document_forensics} />
+          )}
+          {activeTab === "similarity" && (
+            <DocumentSimilarity
+              documentSimilarity={verificationResult.document_similarity}
+              totalDocuments={verificationResult.evidence_snapshot?.length}
+            />
+          )}
           {activeTab === "agents" && <AgentResults agentResults={verificationResult.agent_results || []} />}
           {activeTab === "clauses" && (
             <ComplianceBreakdown requirements={verificationResult.requirements} />
@@ -372,7 +426,10 @@ export const QuickVerification: React.FC = () => {
             />
           )}
           {activeTab === "audit" && (
-            <VerificationAudit verificationId={verificationResult.verification_id} />
+            <VerificationAudit
+              verification={verificationResult}
+              verificationId={verificationResult.verification_id}
+            />
           )}
         </div>
       ) : (

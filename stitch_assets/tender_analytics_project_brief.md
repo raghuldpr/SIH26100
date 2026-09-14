@@ -1,7 +1,7 @@
-# Project Brief: Tender Analytics Dashboard (Quixotic)
+# Project Brief: Tender Analytics Dashboard (TenderTrust)
 
 ## 1. Project Overview
-**Quixotic Procurement** is a high-fidelity tender analytics platform designed to help procurement teams track, analyze, and manage tender compliance and verification workflows. The system centralizes complex data into an actionable dashboard, reducing the time spent on manual document review and risk assessment.
+**TenderTrust** (Reliable Procurement Decisions) is a high-fidelity tender analytics platform designed to help procurement teams track, analyze, and manage tender compliance and verification workflows. The system centralizes complex data into an actionable dashboard, reducing the time spent on manual document review and risk assessment.
 
 ## 2. Target Audience
 - **Procurement Managers**: Overseeing multiple active tenders and ensuring deadlines are met.
@@ -9,7 +9,8 @@
 - **Data Analysts**: Tracking compliance trends and performance scores across the organization.
 
 ## 3. Design System & Brand Identity
-- **Product Name**: Quixotic
+- **Product Name**: TenderTrust
+- **Tagline**: Reliable Procurement Decisions
 - **Visual Style**: Modern, clean, and data-centric. Uses a professional "Forest Green" primary palette (`#125d44`) contrasted with soft surface blues for depth and hierarchy.
 - **Typography**: Hanken Grotesk (Clean, geometric sans-serif for high readability).
 - **Key UI Elements**: Rounded corners (8px), elevated cards, and subtle status-based color coding (Green for verified, Red for issues).

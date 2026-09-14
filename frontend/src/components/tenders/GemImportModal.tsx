@@ -209,7 +209,7 @@ export const GemImportModal: React.FC<GemImportModalProps> = ({
               <div>
                 <h4 className="text-xs font-bold text-on-surface">GeM Tender Already Imported</h4>
                 <p className="text-xs text-on-surface-variant mt-0.5">
-                  {searchResult.message || "This tender has already been persisted in SIH-26100."}
+                  {searchResult.message || "This tender has already been persisted in TenderTrust."}
                 </p>
                 {searchResult.existing_tender && (
                   <div className="mt-2 text-xs font-mono space-y-1">

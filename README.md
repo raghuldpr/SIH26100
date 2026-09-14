@@ -1,4 +1,4 @@
-# SIH26100 — Quixotic Bid Compliance Platform
+# TenderTrust — Reliable Procurement Decisions
 
 > **Enterprise-Grade AI & Deterministic Multi-Agent Bid Compliance Verification Platform for GeM Procurement**
 
@@ -6,7 +6,7 @@
 
 ## 📌 Platform Overview
 
-**SIH-26100** is an automated procurement bid compliance and verification system designed for the Government e-Marketplace (GeM). It integrates deterministic document parsing, structured parameter extraction, an immutable audit trail, and an n8n-orchestrated 10-agent verification workflow powered by server-side Groq LLaMA-3.3-70B minimal semantic fallback.
+**TenderTrust** is an automated procurement bid compliance and verification system designed for the Government e-Marketplace (GeM). It integrates deterministic document parsing, structured parameter extraction, an immutable audit trail, and an n8n-orchestrated 10-agent verification workflow powered by server-side Groq LLaMA-3.3-70B minimal semantic fallback.
 
 ### Core Architectural Principle
 > **"Deterministic rules, OCR, and document forensics evaluate compliance first. AI/LLMs are strictly restricted upstream for ambiguous clause interpretation via a hardened AI Gateway."**

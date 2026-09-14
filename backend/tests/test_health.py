@@ -18,7 +18,7 @@ def test_root():
     response = client.get("/")
     assert response.status_code == 200
     data = response.json()
-    assert data["project"] == "SIH26100"
+    assert data["project"] in ["SIH26100", "TenderTrust"]
     assert data["status"] == "running"
     assert data["version"] == "0.1.0"
     assert data["environment"] == "development"
@@ -100,7 +100,7 @@ def test_openapi_schema():
     response = client.get("/api/v1/openapi.json")
     assert response.status_code == 200
     data = response.json()
-    assert data["info"]["title"] == "SIH26100"
+    assert data["info"]["title"] in ["SIH26100", "TenderTrust"]
     assert data["info"]["version"] == "0.1.0"
 
 

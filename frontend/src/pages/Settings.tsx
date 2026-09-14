@@ -149,7 +149,7 @@ export const Settings: React.FC = () => {
           <div>
             <h3 className="text-sm font-bold text-on-surface">Platform &amp; Architectural Specifications</h3>
             <p className="text-[11px] font-mono text-on-surface-variant">
-              SIH-26100 Quixotic GeM Autonomous Verification Stack
+              TenderTrust — Reliable Procurement Decisions (GeM Verification Stack)
             </p>
           </div>
         </div>
@@ -159,8 +159,8 @@ export const Settings: React.FC = () => {
             <span className="text-[10px] uppercase tracking-wider text-on-surface-variant font-semibold">
               Platform &amp; System
             </span>
-            <div className="font-bold text-on-surface">Quixotic / SIH-26100</div>
-            <div className="text-[10px] text-on-surface-variant">GeM AI Compliance Engine</div>
+            <div className="font-bold text-on-surface">TenderTrust</div>
+            <div className="text-[10px] text-on-surface-variant">Reliable Procurement Decisions</div>
           </div>
 
           <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant/20 space-y-1">

@@ -17,6 +17,9 @@ import {
 import { Button, Select, Skeleton, Badge } from "../components/ui";
 import {
   VerificationSummary,
+  CrossVerification,
+  DocumentForensics,
+  DocumentSimilarity,
   AgentResults,
   ComplianceBreakdown,
   EvidencePanel,
@@ -34,10 +37,13 @@ import {
   Printer,
   History,
   Eye,
+  GitCompare,
+  FileSearch,
+  CopyCheck,
 } from "lucide-react";
 import { formatDate } from "../lib/utils";
 
-type TabType = "summary" | "agents" | "clauses" | "evidence" | "audit";
+type TabType = "summary" | "cross_verification" | "forensics" | "similarity" | "agents" | "clauses" | "evidence" | "audit";
 
 export const Verification: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -395,9 +401,48 @@ export const Verification: React.FC = () => {
 
       {/* Loading Skeleton */}
       {isLoadingVerification && !isRunning && (
-        <div className="space-y-4">
-          <Skeleton className="h-48 w-full rounded-xl" />
-          <Skeleton className="h-64 w-full rounded-xl" />
+        <div className="space-y-6 animate-pulse">
+          {/* Hero Banner Skeleton */}
+          <div className="rounded-xl p-6 bg-surface-container-low/80 border border-outline-variant/30 flex flex-col lg:flex-row justify-between gap-6">
+            <div className="space-y-3 flex-1">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-xl" />
+                <Skeleton className="h-8 w-64 rounded-lg" />
+                <Skeleton className="h-6 w-24 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-96 rounded" />
+              <div className="flex items-center gap-4 pt-2">
+                <Skeleton className="h-4 w-40 rounded" />
+                <Skeleton className="h-4 w-48 rounded" />
+                <Skeleton className="h-4 w-32 rounded" />
+              </div>
+            </div>
+            <Skeleton className="h-28 w-full lg:w-80 rounded-xl" />
+          </div>
+
+          {/* Explanation Section Skeleton */}
+          <div className="rounded-xl p-6 bg-surface-container-lowest border border-outline-variant/30 space-y-3">
+            <Skeleton className="h-4 w-48 rounded" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </div>
+
+          {/* KPI Metrics Skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/30 space-y-2">
+                <Skeleton className="h-3 w-16 rounded" />
+                <Skeleton className="h-8 w-20 rounded" />
+                <Skeleton className="h-3 w-24 rounded" />
+              </div>
+            ))}
+          </div>
+
+          {/* Decision Factors Skeleton */}
+          <div className="rounded-xl p-6 bg-surface-container-lowest border border-outline-variant/30 space-y-4">
+            <Skeleton className="h-5 w-40 rounded" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
         </div>
       )}
 
@@ -416,6 +461,42 @@ export const Verification: React.FC = () => {
             >
               <ShieldCheck className="h-4 w-4" />
               <span>Summary &amp; Outcome</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("cross_verification")}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "cross_verification"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <GitCompare className="h-4 w-4" />
+              <span>Cross-Verification ({activeVerification.cross_verification?.checks?.length || 0})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("forensics")}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "forensics"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <FileSearch className="h-4 w-4" />
+              <span>Document Forensics ({activeVerification.document_forensics?.documents?.length || 0})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("similarity")}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "similarity"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <CopyCheck className="h-4 w-4" />
+              <span>Document Similarity ({activeVerification.document_similarity?.comparisons?.length || 0})</span>
             </button>
 
             <button
@@ -469,7 +550,26 @@ export const Verification: React.FC = () => {
 
           {/* Tab Content */}
           {activeTab === "summary" && (
-            <VerificationSummary verification={activeVerification} />
+            <VerificationSummary
+              verification={activeVerification}
+              tenderReference={currentTender?.tender_number || activeVerification.tender_number}
+              tenderTitle={currentTender?.title || activeVerification.tender_title}
+            />
+          )}
+
+          {activeTab === "cross_verification" && (
+            <CrossVerification crossVerification={activeVerification.cross_verification} />
+          )}
+
+          {activeTab === "forensics" && (
+            <DocumentForensics documentForensics={activeVerification.document_forensics} />
+          )}
+
+          {activeTab === "similarity" && (
+            <DocumentSimilarity
+              documentSimilarity={activeVerification.document_similarity}
+              totalDocuments={activeVerification.evidence_snapshot?.length}
+            />
           )}
 
           {activeTab === "agents" && (
@@ -488,7 +588,11 @@ export const Verification: React.FC = () => {
           )}
 
           {activeTab === "audit" && (
-            <VerificationAudit verificationId={activeVerification.verification_id} />
+            <VerificationAudit
+              verification={activeVerification}
+              tenderReference={currentTender?.tender_number || activeVerification.tender_number}
+              tenderTitle={currentTender?.title || activeVerification.tender_title}
+            />
           )}
         </div>
       )}

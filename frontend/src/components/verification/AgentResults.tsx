@@ -1,5 +1,6 @@
 import React from "react";
 import { N8nAgentResult } from "../../types";
+import { formatAgentEvidenceChips } from "../../lib/evidenceFormatter";
 import {
   Bot,
   FileSearch,
@@ -165,24 +166,42 @@ export const AgentResults: React.FC<AgentResultsProps> = ({ agentResults }) => {
                 )}
 
                 {/* Verified Evidence Key-Values */}
-                {agent.evidence && Object.keys(agent.evidence).length > 0 && (
-                  <div className="pt-2 border-t border-outline-variant/20 flex flex-wrap gap-1.5">
-                    {Object.entries(agent.evidence)
-                      .filter(([k]) => !["extracted_text", "raw_data"].includes(k))
-                      .slice(0, 5)
-                      .map(([key, val]) => (
-                        <span
-                          key={key}
-                          className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded bg-surface-container text-on-surface border border-outline-variant/30"
-                        >
-                          <span className="text-on-surface-variant font-medium">{key}:</span>
-                          <span className="font-bold text-primary">
-                            {typeof val === "object" ? JSON.stringify(val).slice(0, 24) : String(val)}
+                {(() => {
+                  const chips = formatAgentEvidenceChips(agent.evidence);
+                  if (!chips || chips.length === 0) return null;
+
+                  const complexChips = chips.filter(
+                    (c) => c.rawDetails && typeof c.rawDetails === "object" && Object.keys(c.rawDetails).length > 1
+                  );
+
+                  return (
+                    <div className="pt-2 border-t border-outline-variant/20 space-y-1.5">
+                      <div className="flex flex-wrap gap-1.5">
+                        {chips.slice(0, 5).map((chip) => (
+                          <span
+                            key={chip.id}
+                            className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded bg-surface-container text-on-surface border border-outline-variant/30 max-w-full truncate"
+                            title={`${chip.label}: ${chip.value}`}
+                          >
+                            <span className="text-on-surface-variant font-medium shrink-0">{chip.label}:</span>
+                            <span className="font-bold text-primary truncate">{chip.value}</span>
                           </span>
-                        </span>
-                      ))}
-                  </div>
-                )}
+                        ))}
+                      </div>
+
+                      {complexChips.length > 0 && (
+                        <details className="pt-1">
+                          <summary className="text-[10px] text-primary hover:underline cursor-pointer font-mono select-none">
+                            View Technical Details
+                          </summary>
+                          <pre className="p-2 bg-black/5 dark:bg-white/5 rounded font-mono text-[9px] overflow-x-auto mt-1 max-h-36 text-on-surface-variant whitespace-pre-wrap">
+                            {JSON.stringify(agent.evidence, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

@@ -59,6 +59,7 @@ lerna-debug.log*
 dist/
 dist-ssr/
 *.local
+!frontend/src/lib/
 
 # Logs
 logs/

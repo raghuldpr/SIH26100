@@ -11,9 +11,9 @@ ENV_FILE = ROOT_DIR / ".env"
 class Settings(BaseSettings):
     """Application configuration loaded from environment variables and .env file."""
 
-    APP_NAME: str = "SIH26100"
+    APP_NAME: str = "TenderTrust"
     APP_ENV: str = "development"
-    PROJECT_DESCRIPTION: str = "AI-powered Bid Compliance Verification Platform for GeM procurement"
+    PROJECT_DESCRIPTION: str = "TenderTrust - Reliable Procurement Decisions: Bid Compliance Verification Platform for GeM procurement"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
 
